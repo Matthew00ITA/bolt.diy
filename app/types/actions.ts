@@ -1,6 +1,6 @@
 import type { Change } from 'diff';
 
-export type ActionType = 'file' | 'shell';
+export type ActionType = 'file' | 'shell' | 'start' | 'build' | 'supabase';
 
 export interface BaseAction {
   content: string;
@@ -23,7 +23,14 @@ export interface BuildAction extends BaseAction {
   type: 'build';
 }
 
-export type BoltAction = FileAction | ShellAction | StartAction | BuildAction;
+export interface SupabaseAction extends BaseAction {
+  type: 'supabase';
+  operation: 'migration' | 'query';
+  filePath?: string;
+  projectId?: string;
+}
+
+export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction;
 
 export type BoltActionData = BoltAction | BaseAction;
 
@@ -43,6 +50,7 @@ export interface FileHistory {
     timestamp: number;
     content: string;
   }[];
+
   // Novo campo para rastrear a origem das mudanças
   changeSource?: 'user' | 'auto-save' | 'external';
 }

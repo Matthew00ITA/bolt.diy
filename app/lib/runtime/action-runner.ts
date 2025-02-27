@@ -1,11 +1,12 @@
 import type { WebContainer } from '@webcontainer/api';
 import { path as nodePath } from '~/utils/path';
 import { atom, map, type MapStore } from 'nanostores';
-import type { ActionAlert, BoltAction, FileHistory } from '~/types/actions';
+import type { ActionAlert, BoltAction, FileHistory, SupabaseAction } from '~/types/actions';
 import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
 import type { ActionCallbackData } from './message-parser';
 import type { BoltShell } from '~/utils/shell';
+import { executeSupabaseQuery } from '~/lib/services/supabase';
 
 const logger = createScopedLogger('ActionRunner');
 
@@ -72,14 +73,19 @@ export class ActionRunner {
   onAlert?: (alert: ActionAlert) => void;
   buildOutput?: { path: string; exitCode: number; output: string };
 
+  // Change property name to have leading underscore
+  #supabaseConnection: any;
+
   constructor(
     webcontainerPromise: Promise<WebContainer>,
     getShellTerminal: () => BoltShell,
     onAlert?: (alert: ActionAlert) => void,
+    supabaseConnection?: any,
   ) {
     this.#webcontainer = webcontainerPromise;
     this.#shellTerminal = getShellTerminal;
     this.onAlert = onAlert;
+    this.#supabaseConnection = supabaseConnection;
   }
 
   addAction(data: ActionCallbackData) {
@@ -155,6 +161,10 @@ export class ActionRunner {
         }
         case 'file': {
           await this.#runFileAction(action);
+          break;
+        }
+        case 'supabase': {
+          await this.handleSupabaseAction(action as SupabaseAction);
           break;
         }
         case 'build': {
@@ -319,21 +329,22 @@ export class ActionRunner {
       const webcontainer = await this.#webcontainer;
       const historyPath = this.#getHistoryPath(filePath);
       const content = await webcontainer.fs.readFile(historyPath, 'utf-8');
+
       return JSON.parse(content);
     } catch (error) {
+      logger.error(error);
       return null;
     }
   }
 
   async saveFileHistory(filePath: string, history: FileHistory) {
-    const webcontainer = await this.#webcontainer;
     const historyPath = this.#getHistoryPath(filePath);
 
     await this.#runFileAction({
       type: 'file',
       filePath: historyPath,
       content: JSON.stringify(history),
-      changeSource: 'auto-save'
+      changeSource: 'auto-save',
     } as any);
   }
 
@@ -374,5 +385,70 @@ export class ActionRunner {
       exitCode,
       output,
     };
+  }
+
+  async handleSupabaseAction(action: SupabaseAction) {
+    const { operation, content, filePath } = action;
+    logger.debug('[Supabase Action]:', { operation, filePath, content });
+    console.log('Supabase Connection:', this.#supabaseConnection);
+
+    if (!this.#supabaseConnection.token) {
+      this.onAlert?.({
+        type: 'error',
+        title: 'Supabase Connection Required',
+        description: 'Please connect to Supabase first',
+        content: 'Click the "Connect to Supabase" button to proceed.',
+      });
+      throw new Error('Supabase connection required');
+    }
+
+    try {
+      switch (operation) {
+        case 'migration':
+          if (!filePath) {
+            throw new Error('Migration requires a filePath');
+          }
+
+          // Only create the migration file
+          await this.#runFileAction({
+            type: 'file',
+            filePath,
+            content,
+            changeSource: 'supabase',
+          } as any);
+          break;
+
+        case 'query': {
+          // Added braces around case to fix "no-case-declarations" error
+          console.log('Supabase SelectedProject:', this.#supabaseConnection.selectedProjectId);
+
+          if (!this.#supabaseConnection) {
+            logger.error(
+              'Project ID is required for query operation please connect to supabase in settings and choose a project.',
+            );
+            return;
+          }
+
+          const result = await executeSupabaseQuery(
+            this.#supabaseConnection.token,
+            this.#supabaseConnection.stats?.projects?.[1]?.id,
+            content,
+          );
+          console.log('Query Result:', result);
+          break;
+        }
+
+        default:
+          throw new Error(`Unknown operation: ${operation}`);
+      }
+    } catch (error) {
+      this.onAlert?.({
+        type: 'error',
+        title: 'Supabase Action Failed',
+        description: error instanceof Error ? error.message : 'Operation failed',
+        content,
+      });
+      throw error;
+    }
   }
 }

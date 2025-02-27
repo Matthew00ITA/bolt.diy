@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { GithubConnection } from './GithubConnection';
 import { NetlifyConnection } from './NetlifyConnection';
+import { SupabaseConnection } from './SupabaseConnection';
 
 export default function ConnectionsTab() {
   return (
@@ -22,6 +23,7 @@ export default function ConnectionsTab() {
       <div className="grid grid-cols-1 gap-4">
         <GithubConnection />
         <NetlifyConnection />
+        <SupabaseConnection />
       </div>
     </div>
   );

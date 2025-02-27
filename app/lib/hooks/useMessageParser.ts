@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { StreamingMessageParser } from '~/lib/runtime/message-parser';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { createScopedLogger } from '~/utils/logger';
+import { supabaseConnection as connection } from '~/lib/stores/supabase';
 
 const logger = createScopedLogger('useMessageParser');
 
@@ -11,8 +12,9 @@ const messageParser = new StreamingMessageParser({
     onArtifactOpen: (data) => {
       logger.trace('onArtifactOpen', data);
 
+      const supabaseConnection = connection.get();
       workbenchStore.showWorkbench.set(true);
-      workbenchStore.addArtifact(data);
+      workbenchStore.addArtifact(data, supabaseConnection);
     },
     onArtifactClose: (data) => {
       logger.trace('onArtifactClose');
