@@ -10,7 +10,7 @@ export const loader: LoaderFunction = async ({ context, request }) => {
   }
 
   const envVarName = providerBaseUrlEnvKeys[provider].apiTokenKey;
-  const isSet = !!(process.env[envVarName] || (context?.cloudflare?.env as Record<string, any>)?.[envVarName]);
+  const isSet = !!(context?.cloudflare?.env as Record<string, any>)?.[envVarName];
 
   return Response.json({ isSet });
 };

@@ -92,10 +92,31 @@ export default defineConfig((config) => {
     },
     build: {
       target: 'esnext',
+      rollupOptions: {
+        output: {
+          format: 'esm',
+        },
+      },
+      commonjsOptions: {
+        transformMixedEsModules: true,
+      },
+    },
+    optimizeDeps: {
+      esbuildOptions: {
+        define: {
+          global: 'globalThis',
+        },
+      },
     },
     plugins: [
       nodePolyfills({
-        include: ['path', 'buffer', 'process'],
+        include: ['path', 'buffer', 'process', 'util', 'stream', 'crypto', 'child_process'],
+        globals: {
+          Buffer: true,
+          process: true,
+          global: true,
+        },
+        protocolImports: true,
       }),
       config.mode !== 'test' && remixCloudflareDevProxy(),
       remixVitePlugin({
