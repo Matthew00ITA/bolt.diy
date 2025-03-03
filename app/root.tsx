@@ -5,7 +5,7 @@ import tailwindReset from '@unocss/reset/tailwind-compat.css?url';
 import { themeStore } from './lib/stores/theme';
 import { stripIndents } from './utils/stripIndent';
 import { createHead } from 'remix-island';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 
@@ -66,17 +66,19 @@ export const Head = createHead(() => (
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const theme = useStore(themeStore);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     document.querySelector('html')?.setAttribute('data-theme', theme);
+    setIsClient(true);
   }, [theme]);
 
   return (
-    <DndProvider backend={HTML5Backend}>
-      {children}
+    <>
+      {isClient ? <DndProvider backend={HTML5Backend}>{children}</DndProvider> : children}
       <ScrollRestoration />
       <Scripts />
-    </DndProvider>
+    </>
   );
 }
 
