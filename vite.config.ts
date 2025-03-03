@@ -89,6 +89,9 @@ export default defineConfig((config) => {
       __PKG_DEV_DEPENDENCIES: JSON.stringify(pkg.devDependencies),
       __PKG_PEER_DEPENDENCIES: JSON.stringify(pkg.peerDependencies),
       __PKG_OPTIONAL_DEPENDENCIES: JSON.stringify(pkg.optionalDependencies),
+      // Define global values
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
+      'global.Buffer': 'Buffer',
     },
     build: {
       target: 'esnext',
@@ -110,13 +113,15 @@ export default defineConfig((config) => {
     },
     plugins: [
       nodePolyfills({
-        include: ['path', 'buffer', 'process', 'util', 'stream', 'crypto', 'child_process'],
+        include: ['buffer', 'process', 'util', 'stream'],
         globals: {
           Buffer: true,
           process: true,
           global: true,
         },
         protocolImports: true,
+        // Exclude Node.js modules that shouldn't be polyfilled in Cloudflare
+        exclude: ['child_process', 'fs', 'path'],
       }),
       config.mode !== 'test' && remixCloudflareDevProxy(),
       remixVitePlugin({
