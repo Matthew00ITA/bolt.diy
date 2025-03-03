@@ -91,7 +91,6 @@ export default defineConfig((config) => {
       __PKG_OPTIONAL_DEPENDENCIES: JSON.stringify(pkg.optionalDependencies),
       // Define global values
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
-      'global.Buffer': 'Buffer',
     },
     build: {
       target: 'esnext',
@@ -111,6 +110,11 @@ export default defineConfig((config) => {
         },
       },
     },
+    resolve: {
+      alias: {
+        buffer: 'vite-plugin-node-polyfills/polyfills/buffer',
+      },
+    },
     plugins: [
       nodePolyfills({
         include: ['buffer', 'process', 'util', 'stream'],
@@ -123,6 +127,17 @@ export default defineConfig((config) => {
         // Exclude Node.js modules that shouldn't be polyfilled in Cloudflare
         exclude: ['child_process', 'fs', 'path'],
       }),
+      {
+        name: 'buffer-polyfill',
+        transform(code, id) {
+          if (id.includes('env.mjs')) {
+            return {
+              code: `import { Buffer } from 'buffer';\n${code}`,
+              map: null,
+            };
+          }
+        },
+      },
       config.mode !== 'test' && remixCloudflareDevProxy(),
       remixVitePlugin({
         future: {
