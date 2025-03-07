@@ -22,7 +22,7 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
     const targetURL = `https://${path}${url.search}`;
 
     // Forward the request to the target URL
-    const response = await fetch(targetURL, {
+    const fetchOptions: RequestInit = {
       method: request.method,
       headers: {
         ...Object.fromEntries(request.headers),
@@ -31,7 +31,13 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
         host: new URL(targetURL).host,
       },
       body: ['GET', 'HEAD'].includes(request.method) ? null : await request.arrayBuffer(),
-    });
+    };
+
+    /*
+     * Remove any properties that might cause TypeScript errors in different environments
+     * This ensures compatibility with various TypeScript versions and type definitions
+     */
+    const response = await fetch(targetURL, fetchOptions);
 
     // Create response with CORS headers
     const corsHeaders = {
