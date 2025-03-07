@@ -5,6 +5,9 @@ import type { ProviderInfo } from '~/types/model';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
 import { createScopedLogger } from '~/utils/logger';
 
+// Ensure encoder is available for text encoding
+const encoder = new TextEncoder();
+
 export async function action(args: ActionFunctionArgs) {
   return enhancerAction(args);
 }
@@ -95,24 +98,40 @@ async function enhancerAction({ context, request }: ActionFunctionArgs) {
       },
     });
 
+    // Handle streaming errors in a non-blocking way
     (async () => {
-      for await (const part of result.fullStream) {
-        if (part.type === 'error') {
-          const error: any = part.error;
-          logger.error(error);
-
-          return;
+      try {
+        for await (const part of result.fullStream) {
+          if (part.type === 'error') {
+            const error: any = part.error;
+            logger.error('Streaming error:', error);
+            break;
+          }
         }
+      } catch (error) {
+        logger.error('Error processing stream:', error);
       }
     })();
 
-    return new Response(result.textStream, {
+    // Create a TransformStream to process the text stream
+    const transformStream = new TransformStream({
+      transform(chunk, controller) {
+        // Ensure we're working with text data
+        if (chunk) {
+          controller.enqueue(encoder.encode(chunk));
+        }
+      },
+    });
+
+    // Pipe the text stream through our transform stream
+    const readableStream = result.textStream.pipeThrough(transformStream);
+
+    return new Response(readableStream, {
       status: 200,
       headers: {
         'Content-Type': 'text/event-stream',
         Connection: 'keep-alive',
         'Cache-Control': 'no-cache',
-        'Text-Encoding': 'chunked',
       },
     });
   } catch (error: unknown) {
