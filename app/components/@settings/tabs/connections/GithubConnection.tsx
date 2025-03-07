@@ -222,6 +222,20 @@ export default function GithubConnection() {
 
     setIsLoading(false);
   }, []);
+  useEffect(() => {
+    if (!connection) {
+      return;
+    }
+
+    const token = connection.token;
+    const data = connection.user;
+    Cookies.set('githubToken', token);
+    Cookies.set('git:github.com', JSON.stringify({ username: token, password: 'x-oauth-basic' }));
+
+    if (data) {
+      Cookies.set('githubUsername', data.login);
+    }
+  }, [connection]);
 
   if (isLoading || isConnecting || isFetchingStats) {
     return <LoadingSpinner />;
