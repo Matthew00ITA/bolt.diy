@@ -5,9 +5,6 @@ import type { ProviderInfo } from '~/types/model';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
 import { createScopedLogger } from '~/utils/logger';
 
-// Ensure encoder is available for text encoding
-const encoder = new TextEncoder();
-
 export async function action(args: ActionFunctionArgs) {
   return enhancerAction(args);
 }
@@ -113,20 +110,8 @@ async function enhancerAction({ context, request }: ActionFunctionArgs) {
       }
     })();
 
-    // Create a TransformStream to process the text stream
-    const transformStream = new TransformStream({
-      transform(chunk, controller) {
-        // Ensure we're working with text data
-        if (chunk) {
-          controller.enqueue(encoder.encode(chunk));
-        }
-      },
-    });
-
-    // Pipe the text stream through our transform stream
-    const readableStream = result.textStream.pipeThrough(transformStream);
-
-    return new Response(readableStream, {
+    // Return the text stream directly since it's already text data
+    return new Response(result.textStream, {
       status: 200,
       headers: {
         'Content-Type': 'text/event-stream',
