@@ -166,8 +166,6 @@ export class ActionRunner {
           try {
             await this.handleSupabaseAction(action as SupabaseAction);
           } catch (error: any) {
-
->>>>>>> bccf3c2 (initial commit)
             // Update action status
             this.#updateAction(actionId, {
               status: 'failed',
