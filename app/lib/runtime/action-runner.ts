@@ -166,6 +166,12 @@ export class ActionRunner {
           try {
             await this.handleSupabaseAction(action as SupabaseAction);
           } catch (error: any) {
+<<<<<<< HEAD
+=======
+            // Handle Supabase errors specifically
+            console.log('Caught Supabase error:', error);
+
+>>>>>>> bccf3c2 (initial commit)
             // Update action status
             this.#updateAction(actionId, {
               status: 'failed',
@@ -440,7 +446,11 @@ export class ActionRunner {
           content,
           changeSource: 'supabase',
         } as any);
+<<<<<<< HEAD
         return { success: true };
+=======
+        return { success: true }; // Add return value for migration case
+>>>>>>> bccf3c2 (initial commit)
 
       case 'query': {
         console.log('Supabase SelectedProject:', this.#supabaseConnection.selectedProjectId);
@@ -459,7 +469,11 @@ export class ActionRunner {
           throw new Error(errorMessage);
         }
 
+<<<<<<< HEAD
         // Make the API call directly (maybe move this to its own function)
+=======
+        // Make the API call directly
+>>>>>>> bccf3c2 (initial commit)
         const response = await fetch('/api/supabase/query', {
           method: 'POST',
           headers: {
@@ -472,9 +486,17 @@ export class ActionRunner {
           }),
         });
 
+<<<<<<< HEAD
         const responseData = (await response.json()) as any;
 
         if (!response.ok) {
+=======
+        // Parse the response JSON regardless of success/failure
+        const responseData = (await response.json()) as any;
+
+        if (!response.ok) {
+          // Extract error message from response
+>>>>>>> bccf3c2 (initial commit)
           const errorMessage = responseData.error?.message || 'Failed to execute query';
 
           console.log('Query failed, showing alert:', errorMessage); // Add this line
@@ -488,6 +510,10 @@ export class ActionRunner {
             source: 'supabase',
           });
 
+<<<<<<< HEAD
+=======
+          // Throw error to be caught by outer catch block
+>>>>>>> bccf3c2 (initial commit)
           throw new Error(errorMessage);
         }
 

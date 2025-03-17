@@ -32,8 +32,15 @@ export async function action({ request }: ActionFunctionArgs) {
       let errorData;
 
       try {
+<<<<<<< HEAD
         errorData = JSON.parse(errorText);
       } catch (e) {
+=======
+        // Try to parse as JSON first
+        errorData = JSON.parse(errorText);
+      } catch (e) {
+        // If not JSON, use the raw text
+>>>>>>> bccf3c2 (initial commit)
         console.log(e);
         errorData = { message: errorText };
       }

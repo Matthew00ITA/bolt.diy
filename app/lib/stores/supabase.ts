@@ -58,6 +58,7 @@ export function updateSupabaseConnection(connection: Partial<SupabaseConnectionS
   }
 
   // Update the project data when selectedProjectId changes
+<<<<<<< HEAD
   if (connection.selectedProjectId !== undefined) {
     if (connection.selectedProjectId && currentState.stats?.projects) {
       const selectedProject = currentState.stats.projects.find(
@@ -70,6 +71,13 @@ export function updateSupabaseConnection(connection: Partial<SupabaseConnectionS
     } else if (connection.selectedProjectId === '') {
       // Clear the project when selectedProjectId is empty
       connection.project = undefined;
+=======
+  if (connection.selectedProjectId && currentState.stats?.projects) {
+    const selectedProject = currentState.stats.projects.find((project) => project.id === connection.selectedProjectId);
+
+    if (selectedProject) {
+      connection.project = selectedProject;
+>>>>>>> bccf3c2 (initial commit)
     }
   }
 
