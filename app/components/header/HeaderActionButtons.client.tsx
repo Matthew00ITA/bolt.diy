@@ -18,7 +18,6 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Add a ref for the Supabase dropdown
   const supabaseDropdownRef = useRef<HTMLDivElement>(null);
   const { setIsDropdownOpen: setIsSupabaseDropdownOpen } = useSupabaseConnection();
 
@@ -28,7 +27,6 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
         setIsDropdownOpen(isDropdownOpen);
       }
 
-      // Add check for Supabase dropdown
       if (supabaseDropdownRef.current && !supabaseDropdownRef.current.contains(event.target as Node)) {
         setIsSupabaseDropdownOpen(false);
       }

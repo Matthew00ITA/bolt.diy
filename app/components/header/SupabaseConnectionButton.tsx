@@ -34,30 +34,18 @@ export function SupabaseConnectionButton() {
       if (savedProjectId && savedProjectId !== supabaseConn.selectedProjectId) {
         selectProject(savedProjectId);
       } else if (!savedProjectId && supabaseConn.selectedProjectId) {
-        // Only clear if there's no saved project for this chat but we have a selection
         selectProject('');
       }
     }
-  }, [isConnected, currentChatId]); // Remove selectProject from dependencies
+  }, [isConnected, currentChatId]);
 
-  // Save selected project to localStorage when it changes
   useEffect(() => {
     if (currentChatId && supabaseConn.selectedProjectId) {
       localStorage.setItem(`supabase-project-${currentChatId}`, supabaseConn.selectedProjectId);
     } else if (currentChatId && !supabaseConn.selectedProjectId) {
-      // Remove from localStorage if project is deselected
       localStorage.removeItem(`supabase-project-${currentChatId}`);
     }
   }, [currentChatId, supabaseConn.selectedProjectId]);
-
-  /*
-   * Remove the conflicting effect that was clearing the selection
-   * useEffect(() => {
-   *   if (isConnected) {
-   *     selectProject(''); // Clear selected project
-   *   }
-   * }, [currentChatId]);
-   */
 
   useEffect(() => {
     if (isConnected && supabaseConn.token) {

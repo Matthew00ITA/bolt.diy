@@ -166,8 +166,6 @@ export class ActionRunner {
           try {
             await this.handleSupabaseAction(action as SupabaseAction);
           } catch (error: any) {
-            // Handle Supabase errors specifically
-            console.log('Caught Supabase error:', error);
 
             // Update action status
             this.#updateAction(actionId, {
@@ -443,7 +441,7 @@ export class ActionRunner {
           content,
           changeSource: 'supabase',
         } as any);
-        return { success: true }; // Add return value for migration case
+        return { success: true };
 
       case 'query': {
         console.log('Supabase SelectedProject:', this.#supabaseConnection.selectedProjectId);
@@ -462,7 +460,7 @@ export class ActionRunner {
           throw new Error(errorMessage);
         }
 
-        // Make the API call directly
+        // Make the API call directly (maybe move this to its own function)
         const response = await fetch('/api/supabase/query', {
           method: 'POST',
           headers: {
@@ -475,11 +473,9 @@ export class ActionRunner {
           }),
         });
 
-        // Parse the response JSON regardless of success/failure
         const responseData = (await response.json()) as any;
 
         if (!response.ok) {
-          // Extract error message from response
           const errorMessage = responseData.error?.message || 'Failed to execute query';
 
           console.log('Query failed, showing alert:', errorMessage); // Add this line
@@ -493,7 +489,6 @@ export class ActionRunner {
             source: 'supabase',
           });
 
-          // Throw error to be caught by outer catch block
           throw new Error(errorMessage);
         }
 

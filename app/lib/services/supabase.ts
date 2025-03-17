@@ -6,7 +6,6 @@ export async function executeSupabaseQuery(token: string, projectId: string, que
   });
 
   try {
-    // Use the API route instead of calling Supabase directly
     const response = await fetch('/api/supabase/query', {
       method: 'POST',
       headers: {

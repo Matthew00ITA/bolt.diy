@@ -12,6 +12,8 @@ export default function ChatAlert({ alert, clearAlert, postMessage }: Props) {
   const { description, content, source } = alert;
 
   const isPreview = source === 'preview';
+  const isSupabase = source === 'supabase';
+  //TODO: Implement supbase error actions...
   const title = isPreview ? 'Preview Error' : 'Terminal Error';
   const message = isPreview
     ? 'We encountered an error while running the preview. Would you like Bolt to analyze and help resolve this issue?'

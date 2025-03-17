@@ -32,10 +32,8 @@ export async function action({ request }: ActionFunctionArgs) {
       let errorData;
 
       try {
-        // Try to parse as JSON first
         errorData = JSON.parse(errorText);
       } catch (e) {
-        // If not JSON, use the raw text
         console.log(e);
         errorData = { message: errorText };
       }
