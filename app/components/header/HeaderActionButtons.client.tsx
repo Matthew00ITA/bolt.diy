@@ -4,11 +4,6 @@ import { chatStore } from '~/lib/stores/chat';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { classNames } from '~/utils/classNames';
 import { useEffect, useRef, useState } from 'react';
-<<<<<<< HEAD
-=======
-import { useSupabaseConnection } from '~/lib/hooks/useSupabaseConnection';
-import { SupabaseConnectionButton } from '~/components/header/SupabaseConnectionButton';
->>>>>>> bccf3c2 (initial commit)
 import { DeploymentButton } from '~/components/header/DeploymentButton';
 
 interface HeaderActionButtonsProps {}
@@ -20,12 +15,6 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
   const canHideChat = showWorkbench || !showChat;
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-<<<<<<< HEAD
-=======
-
-  const supabaseDropdownRef = useRef<HTMLDivElement>(null);
-  const { setIsDropdownOpen: setIsSupabaseDropdownOpen } = useSupabaseConnection();
->>>>>>> bccf3c2 (initial commit)
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -33,11 +22,6 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
         setIsDropdownOpen(isDropdownOpen);
 <<<<<<< HEAD
 =======
-      }
-
-      if (supabaseDropdownRef.current && !supabaseDropdownRef.current.contains(event.target as Node)) {
-        setIsSupabaseDropdownOpen(false);
->>>>>>> bccf3c2 (initial commit)
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -47,10 +31,6 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
 
   return (
     <div className="flex">
-<<<<<<< HEAD
-=======
-      <SupabaseConnectionButton />
->>>>>>> bccf3c2 (initial commit)
       <DeploymentButton />
       <div className="flex border border-bolt-elements-borderColor rounded-md overflow-hidden">
         <Button

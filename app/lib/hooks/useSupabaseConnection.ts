@@ -98,9 +98,5 @@ export function useSupabaseConnection() {
     handleCreateProject,
     updateToken: (token: string) => updateSupabaseConnection({ ...connection, token }),
     isConnected: !!connection.user,
-<<<<<<< HEAD
-=======
-    buttonLabel: connecting ? 'Connecting...' : connection.user ? 'Supabase' : 'Connect DB',
->>>>>>> bccf3c2 (initial commit)
   };
 }
