@@ -58,17 +58,25 @@ export function updateSupabaseConnection(connection: Partial<SupabaseConnectionS
   }
 
   // Update the project data when selectedProjectId changes
-  if (connection.selectedProjectId && currentState.stats?.projects) {
-    const selectedProject = currentState.stats.projects.find((project) => project.id === connection.selectedProjectId);
+  if (connection.selectedProjectId !== undefined) {
+    if (connection.selectedProjectId && currentState.stats?.projects) {
+      const selectedProject = currentState.stats.projects.find(
+        (project) => project.id === connection.selectedProjectId,
+      );
 
-    if (selectedProject) {
-      connection.project = selectedProject;
+      if (selectedProject) {
+        connection.project = selectedProject;
+      }
+    } else if (connection.selectedProjectId === '') {
+      // Clear the project when selectedProjectId is empty
+      connection.project = undefined;
     }
   }
 
   const newState = { ...currentState, ...connection };
   supabaseConnection.set(newState);
 
+  // Always save the connection state to localStorage to persist across chats
   if (connection.user || connection.token || connection.selectedProjectId !== undefined) {
     localStorage.setItem('supabase_connection', JSON.stringify(newState));
   } else {
