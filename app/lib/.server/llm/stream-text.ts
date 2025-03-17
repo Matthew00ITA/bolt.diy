@@ -12,7 +12,32 @@ import { getFilePaths } from './select-context';
 
 export type Messages = Message[];
 
-export type StreamingOptions = Omit<Parameters<typeof _streamText>[0], 'model'>;
+export interface StreamingOptions extends Omit<Parameters<typeof _streamText>[0], 'model'> {
+  supabaseConnection?: {
+    user: null;
+    token: string;
+    stats?: {
+      projects: any[];
+      totalProjects: number;
+    };
+    selectedProjectId?: string;
+    isConnected: boolean;
+    project?: {
+      id: string;
+      name: string;
+      region: string;
+      organization_id: string;
+      status: string;
+      database: {
+        host: string;
+        version: string;
+        postgres_engine: string;
+        release_channel: string;
+      };
+      created_at: string;
+    };
+  };
+}
 
 const logger = createScopedLogger('stream-text');
 
@@ -28,6 +53,30 @@ export async function streamText(props: {
   contextFiles?: FileMap;
   summary?: string;
   messageSliceId?: number;
+  supabaseConnection?: {
+    user: null;
+    token: string;
+    stats?: {
+      projects: any[];
+      totalProjects: number;
+    };
+    selectedProjectId?: string;
+    isConnected: boolean;
+    project?: {
+      id: string;
+      name: string;
+      region: string;
+      organization_id: string;
+      status: string;
+      database: {
+        host: string;
+        version: string;
+        postgres_engine: string;
+        release_channel: string;
+      };
+      created_at: string;
+    };
+  };
 }) {
   const {
     messages,
@@ -40,7 +89,9 @@ export async function streamText(props: {
     contextOptimization,
     contextFiles,
     summary,
+    supabaseConnection, // Add this to destructure
   } = props;
+
   let currentModel = DEFAULT_MODEL;
   let currentProvider = DEFAULT_PROVIDER.name;
   let processedMessages = messages.map((message) => {
@@ -92,12 +143,15 @@ export async function streamText(props: {
 
   const dynamicMaxTokens = modelDetails && modelDetails.maxTokenAllowed ? modelDetails.maxTokenAllowed : MAX_TOKENS;
 
+  console.log('supabaseConnection:', supabaseConnection);
+
   let systemPrompt =
     PromptLibrary.getPropmtFromLibrary(promptId || 'default', {
       cwd: WORK_DIR,
       allowedHtmlElements: allowedHTMLElements,
       modificationTagName: MODIFICATIONS_TAG_NAME,
-    }) ?? getSystemPrompt();
+      supabaseConnection,
+    }) ?? getSystemPrompt(WORK_DIR, supabaseConnection); // Use destructured value
 
   if (files && contextFiles && contextOptimization) {
     const codeContext = createFilesContext(contextFiles, true);

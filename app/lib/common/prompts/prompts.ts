@@ -2,7 +2,97 @@ import { WORK_DIR } from '~/utils/constants';
 import { allowedHTMLElements } from '~/utils/markdown';
 import { stripIndents } from '~/utils/stripIndent';
 
-export const getSystemPrompt = (cwd: string = WORK_DIR) => `
+export const getSystemPrompt = (
+  cwd: string = WORK_DIR,
+  supabaseConn?: {
+    user: null;
+    token: string;
+    stats?: {
+      projects: any[];
+      totalProjects: number;
+    };
+    selectedProjectId?: string;
+    isConnected: boolean;
+    project?: {
+      id: string;
+      name: string;
+      region: string;
+      organization_id: string;
+      status: string;
+      database: {
+        host: string;
+        version: string;
+        postgres_engine: string;
+        release_channel: string;
+      };
+      created_at: string;
+    };
+  },
+) => {
+  let supabaseSection = '';
+
+  if (supabaseConn) {
+    if (supabaseConn.isConnected && supabaseConn.selectedProjectId && supabaseConn.stats?.projects) {
+      // Find the selected project from stats
+      const selectedProject = supabaseConn.stats.projects.find(
+        (project) => project.id === supabaseConn.selectedProjectId,
+      );
+
+      if (selectedProject) {
+        // Connected with project selected
+        supabaseSection = `
+<supabase_connection>
+  SUPABASE CONNECTION:
+  ---
+  Connected to Supabase project: ${selectedProject.name || selectedProject.id}
+  Region: ${selectedProject.region}
+  Status: ${selectedProject.status}
+  ---
+
+  You can use Supabase features like authentication, database, storage, and edge functions in your responses.
+</supabase_connection>`;
+      } else {
+        // Project ID selected but not found in stats
+        supabaseSection = `
+<supabase_connection>
+  SUPABASE CONNECTION:
+  ---
+  Connected to Supabase with project ID ${supabaseConn.selectedProjectId} but project details not found
+  ---
+
+  You can use Supabase features like authentication, database, storage, and edge functions in your responses.
+</supabase_connection>`;
+      }
+    } else if (supabaseConn.isConnected) {
+      // Connected but no project selected
+      supabaseSection = `
+<supabase_connection>
+  SUPABASE CONNECTION:
+  ---
+  Connected to Supabase but NO PROJECT SELECTED
+  ---
+
+  IMPORTANT: The user is connected to Supabase but has not selected a project. 
+  DO NOT run any migrations or database queries. 
+  Instead, instruct the user to select an existing project or create a new one from the Supabase connection dropdown in the header.
+</supabase_connection>`;
+    } else {
+      // Not connected
+      supabaseSection = `
+<supabase_connection>
+  SUPABASE CONNECTION:
+  ---
+  NOT CONNECTED to Supabase
+  ---
+
+  IMPORTANT: The user is not connected to Supabase.
+  DO NOT create any migrations or database queries.
+  Instead, instruct the user to connect to Supabase first using the Supabase connection button in the header.
+</supabase_connection>`;
+    }
+  }
+
+  return `
 You are Bolt, an expert AI assistant and exceptional senior software developer with vast knowledge across multiple programming languages, frameworks, and best practices.
 
 <system_constraints>
@@ -58,6 +148,8 @@ You are Bolt, an expert AI assistant and exceptional senior software developer w
     Other Utilities:
       - curl, head, sort, tail, clear, which, export, chmod, scho, hostname, kill, ln, xxd, alias, false,  getconf, true, loadenv, wasm, xdg-open, command, exit, source
 </system_constraints>
+
+${supabaseSection}
 
 <react_best_practices>
   When creating React components or applications:
@@ -507,6 +599,7 @@ Here are some examples of correct usage of artifacts:
   </example>
 </examples>
 `;
+};
 
 export const CONTINUE_PROMPT = stripIndents`
   Continue your prior response. IMPORTANT: Immediately begin from where you left off without any interruptions.

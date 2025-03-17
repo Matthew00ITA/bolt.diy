@@ -37,11 +37,31 @@ function parseCookies(cookieHeader: string): Record<string, string> {
 }
 
 async function chatAction({ context, request }: ActionFunctionArgs) {
-  const { messages, files, promptId, contextOptimization } = await request.json<{
+  const { messages, files, promptId, contextOptimization, supabase } = await request.json<{
     messages: Messages;
     files: any;
     promptId?: string;
     contextOptimization: boolean;
+    supabase?: {
+      isConnected: boolean;
+      user: any;
+      token: string;
+      selectedProjectId?: string;
+      project?: {
+        id: string;
+        name: string;
+        region: string;
+        organization_id: string;
+        status: string;
+        database: {
+          host: string;
+          version: string;
+          postgres_engine: string;
+          release_channel: string;
+        };
+        created_at: string;
+      };
+    };
   }>();
 
   const cookieHeader = request.headers.get('Cookie');
@@ -182,6 +202,9 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
         // Stream the text
         const options: StreamingOptions = {
           toolChoice: 'none',
+
+          // Pass supabase connection info to the streaming options
+          supabaseConnection: supabase,
           onFinish: async ({ text: content, finishReason, usage }) => {
             logger.debug('usage', JSON.stringify(usage));
 
@@ -242,6 +265,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
               contextFiles: filteredFiles,
               summary,
               messageSliceId,
+              supabaseConnection: supabase, // Pass supabase connection here
             });
 
             result.mergeIntoDataStream(dataStream);
@@ -281,6 +305,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           contextFiles: filteredFiles,
           summary,
           messageSliceId,
+          supabaseConnection: supabase, // Pass supabase connection here
         });
 
         (async () => {

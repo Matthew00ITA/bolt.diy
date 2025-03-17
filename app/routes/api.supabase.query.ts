@@ -24,14 +24,47 @@ export async function action({ request }: ActionFunctionArgs) {
         Authorization: authHeader,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ query }), // No need for project_id in body now
+      body: JSON.stringify({ query }),
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      logger.error('Supabase API error:', error);
+      const errorText = await response.text();
+      let errorData;
 
-      return new Response(error, { status: response.status });
+      try {
+        // Try to parse as JSON first
+        errorData = JSON.parse(errorText);
+      } catch (e) {
+        // If not JSON, use the raw text
+        console.log(e);
+        errorData = { message: errorText };
+      }
+
+      logger.error(
+        'Supabase API error:',
+        JSON.stringify({
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        }),
+      );
+
+      return new Response(
+        JSON.stringify({
+          error: {
+            status: response.status,
+            statusText: response.statusText,
+            message: errorData.message || errorData.error || errorText,
+            details: errorData,
+          },
+        }),
+        {
+          status: response.status,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        },
+      );
     }
 
     const result = await response.json();
@@ -45,7 +78,10 @@ export async function action({ request }: ActionFunctionArgs) {
     logger.error('Query execution error:', error);
     return new Response(
       JSON.stringify({
-        error: error instanceof Error ? error.message : 'Query execution failed',
+        error: {
+          message: error instanceof Error ? error.message : 'Query execution failed',
+          stack: error instanceof Error ? error.stack : undefined,
+        },
       }),
       {
         status: 500,

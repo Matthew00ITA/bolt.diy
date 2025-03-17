@@ -6,7 +6,6 @@ import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
 import type { ActionCallbackData } from './message-parser';
 import type { BoltShell } from '~/utils/shell';
-import { executeSupabaseQuery } from '~/lib/services/supabase';
 
 const logger = createScopedLogger('ActionRunner');
 
@@ -164,7 +163,33 @@ export class ActionRunner {
           break;
         }
         case 'supabase': {
-          await this.handleSupabaseAction(action as SupabaseAction);
+          try {
+            await this.handleSupabaseAction(action as SupabaseAction);
+          } catch (error: any) {
+            // Handle Supabase errors specifically
+            console.log('Caught Supabase error:', error);
+
+            // Update action status
+            this.#updateAction(actionId, {
+              status: 'failed',
+              error: error instanceof Error ? error.message : 'Supabase action failed',
+            });
+
+            // Show alert if not already shown
+            if (!error._alertShown) {
+              this.onAlert?.({
+                type: 'error',
+                title: 'Supabase Action Failed',
+                description: error instanceof Error ? error.message : 'Operation failed',
+                content: action.content,
+                source: 'supabase',
+              });
+              error._alertShown = true;
+            }
+
+            // Return early without re-throwing
+            return;
+          }
           break;
         }
         case 'build': {
@@ -391,64 +416,94 @@ export class ActionRunner {
     const { operation, content, filePath } = action;
     logger.debug('[Supabase Action]:', { operation, filePath, content });
     console.log('Supabase Connection:', this.#supabaseConnection);
+    console.log('onAlert callback exists:', !!this.onAlert);
 
     if (!this.#supabaseConnection.token) {
+      console.log('No token, showing alert');
       this.onAlert?.({
         type: 'error',
         title: 'Supabase Connection Required',
         description: 'Please connect to Supabase first',
         content: 'Click the "Connect to Supabase" button to proceed.',
+        source: 'supabase',
       });
       throw new Error('Supabase connection required');
     }
 
-    try {
-      switch (operation) {
-        case 'migration':
-          if (!filePath) {
-            throw new Error('Migration requires a filePath');
-          }
-
-          // Only create the migration file
-          await this.#runFileAction({
-            type: 'file',
-            filePath,
-            content,
-            changeSource: 'supabase',
-          } as any);
-          break;
-
-        case 'query': {
-          // Added braces around case to fix "no-case-declarations" error
-          console.log('Supabase SelectedProject:', this.#supabaseConnection.selectedProjectId);
-
-          if (!this.#supabaseConnection) {
-            logger.error(
-              'Project ID is required for query operation please connect to supabase in settings and choose a project.',
-            );
-            return;
-          }
-
-          const result = await executeSupabaseQuery(
-            this.#supabaseConnection.token,
-            this.#supabaseConnection.stats?.projects?.[1]?.id,
-            content,
-          );
-          console.log('Query Result:', result);
-          break;
+    switch (operation) {
+      case 'migration':
+        if (!filePath) {
+          throw new Error('Migration requires a filePath');
         }
 
-        default:
-          throw new Error(`Unknown operation: ${operation}`);
+        // Only create the migration file
+        await this.#runFileAction({
+          type: 'file',
+          filePath,
+          content,
+          changeSource: 'supabase',
+        } as any);
+        return { success: true }; // Add return value for migration case
+
+      case 'query': {
+        console.log('Supabase SelectedProject:', this.#supabaseConnection.selectedProjectId);
+
+        if (!this.#supabaseConnection.selectedProjectId) {
+          const errorMessage =
+            'Project ID is required for query operation. Please connect to Supabase and choose a project.';
+          logger.error(errorMessage);
+          this.onAlert?.({
+            type: 'error',
+            title: 'Supabase Project Required',
+            description: errorMessage,
+            content,
+            source: 'supabase',
+          });
+          throw new Error(errorMessage);
+        }
+
+        // Make the API call directly
+        const response = await fetch('/api/supabase/query', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.#supabaseConnection.token}`,
+          },
+          body: JSON.stringify({
+            projectId: this.#supabaseConnection.selectedProjectId,
+            query: content,
+          }),
+        });
+
+        // Parse the response JSON regardless of success/failure
+        const responseData = (await response.json()) as any;
+
+        if (!response.ok) {
+          // Extract error message from response
+          const errorMessage = responseData.error?.message || 'Failed to execute query';
+
+          console.log('Query failed, showing alert:', errorMessage); // Add this line
+
+          // Show alert with error details
+          this.onAlert?.({
+            type: 'error',
+            title: 'Supabase Query Failed',
+            description: errorMessage,
+            content: JSON.stringify(responseData, null, 2),
+            source: 'supabase',
+          });
+
+          // Throw error to be caught by outer catch block
+          throw new Error(errorMessage);
+        }
+
+        console.log('Query Result:', responseData);
+
+        return responseData;
       }
-    } catch (error) {
-      this.onAlert?.({
-        type: 'error',
-        title: 'Supabase Action Failed',
-        description: error instanceof Error ? error.message : 'Operation failed',
-        content,
-      });
-      throw error;
+
+      default:
+        throw new Error(`Unknown operation: ${operation}`);
     }
   }
 }

@@ -1,11 +1,28 @@
 import { atom } from 'nanostores';
 import type { SupabaseUser, SupabaseStats } from '~/types/supabase';
 
-interface SupabaseConnectionState {
+export interface SupabaseProject {
+  id: string;
+  name: string;
+  region: string;
+  organization_id: string;
+  status: string;
+  database?: {
+    host: string;
+    version: string;
+    postgres_engine: string;
+    release_channel: string;
+  };
+  created_at: string;
+}
+
+export interface SupabaseConnectionState {
   user: SupabaseUser | null;
   token: string;
   stats?: SupabaseStats;
   selectedProjectId?: string;
+  isConnected?: boolean;
+  project?: SupabaseProject; // Add the selected project data
 }
 
 // Init from localStorage if available
@@ -18,6 +35,8 @@ const initialState: SupabaseConnectionState = savedConnection
       token: '',
       stats: undefined,
       selectedProjectId: undefined,
+      isConnected: false,
+      project: undefined, // Initialize as undefined
     };
 
 export const supabaseConnection = atom<SupabaseConnectionState>(initialState);
@@ -32,6 +51,21 @@ export const isFetchingStats = atom(false);
 
 export function updateSupabaseConnection(connection: Partial<SupabaseConnectionState>) {
   const currentState = supabaseConnection.get();
+
+  // Set isConnected based on user presence
+  if (connection.user !== undefined) {
+    connection.isConnected = !!connection.user;
+  }
+
+  // Update the project data when selectedProjectId changes
+  if (connection.selectedProjectId && currentState.stats?.projects) {
+    const selectedProject = currentState.stats.projects.find((project) => project.id === connection.selectedProjectId);
+
+    if (selectedProject) {
+      connection.project = selectedProject;
+    }
+  }
+
   const newState = { ...currentState, ...connection };
   supabaseConnection.set(newState);
 

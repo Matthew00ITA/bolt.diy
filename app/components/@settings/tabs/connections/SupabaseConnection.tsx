@@ -4,7 +4,13 @@ import { toast } from 'react-toastify';
 import { useStore } from '@nanostores/react';
 import { logStore } from '~/lib/stores/logs';
 import { classNames } from '~/utils/classNames';
-import { supabaseConnection, isConnecting, isFetchingStats, updateSupabaseConnection } from '~/lib/stores/supabase';
+import {
+  supabaseConnection,
+  isConnecting,
+  isFetchingStats,
+  updateSupabaseConnection,
+  fetchSupabaseStats,
+} from '~/lib/stores/supabase';
 
 export function SupabaseConnection() {
   const connection = useStore(supabaseConnection);
@@ -22,6 +28,11 @@ export function SupabaseConnection() {
     if (savedConnection) {
       const parsed = JSON.parse(savedConnection);
       updateSupabaseConnection(parsed);
+
+      // Fetch stats if we have a token
+      if (parsed.token) {
+        fetchSupabaseStats(parsed.token).catch(console.error);
+      }
     }
   }, []);
 
