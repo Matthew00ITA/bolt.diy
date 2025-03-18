@@ -157,67 +157,95 @@ function DatabaseTable({
 
   // Function to safely execute a query with proper error handling
   const executeQuery = async (token: string, projectId: string, query: string, errorContext: string) => {
-    try {
-      console.log(`[Supabase] Executing ${errorContext} query: ${query.substring(0, 30)}...`);
+    let retries = 0;
+    const maxRetries = 2;
+    const retryDelay = 1000; // 1 second
 
-      const response = await fetch('/api/supabase/query', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          projectId,
-          query,
-        }),
-      });
+    const attemptQuery = async (): Promise<any> => {
+      try {
+        console.log(`[Supabase] Executing ${errorContext} query: ${query.substring(0, 30)}...`);
 
-      console.log(`[Supabase] ${errorContext} response status:`, response.status);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[Supabase] API error (${response.status}) for ${errorContext}:`, errorText);
+        const response = await fetch('/api/supabase/query', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            projectId,
+            query,
+          }),
+          signal: controller.signal,
+        });
 
-        // For 429 errors, add a longer cooldown
-        if (response.status === 429) {
-          lastFetchTimeRef.current = Date.now(); // Reset the cooldown timer
-          console.warn(`[Supabase] Rate limit hit, cooling down for ${cooldownPeriod / 1000}s`);
+        clearTimeout(timeoutId);
+
+        console.log(`[Supabase] ${errorContext} response status:`, response.status);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`[Supabase] API error (${response.status}) for ${errorContext}:`, errorText);
+
+          // For 429 errors, add a longer cooldown
+          if (response.status === 429) {
+            lastFetchTimeRef.current = Date.now(); // Reset the cooldown timer
+            console.warn(`[Supabase] Rate limit hit, cooling down for ${cooldownPeriod / 1000}s`);
+          }
+
+          return null;
+        }
+
+        // Parse the response and log it
+        const responseData = (await response.json()) as any;
+        console.log(`[Supabase] ${errorContext} response data:`, responseData);
+
+        // Check if we have an error in the response
+        if (responseData.error) {
+          console.error(`[Supabase] Query error for ${errorContext}:`, responseData.error);
+          return null;
+        }
+
+        // Extract the result data - Supabase sometimes returns it with or without .result
+        let resultData;
+
+        if (responseData.result) {
+          resultData = responseData.result;
+        } else if (Array.isArray(responseData)) {
+          resultData = responseData; // Direct array
+        } else if (responseData.data) {
+          resultData = responseData.data; // Some endpoints use .data
+        } else {
+          // Fallback for any other structure
+          resultData = responseData;
+        }
+
+        console.log(`[Supabase] ${errorContext} extracted result:`, resultData);
+
+        return resultData;
+      } catch (err) {
+        console.error(`[Supabase] Error in ${errorContext}:`, err);
+
+        // Check if we should retry
+        if (
+          retries < maxRetries &&
+          ((err instanceof TypeError && err.message.includes('Failed to fetch')) ||
+            (err instanceof DOMException && err.name === 'AbortError'))
+        ) {
+          retries++;
+          console.log(`[Supabase] Retrying ${errorContext} (${retries}/${maxRetries}) after ${retryDelay}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, retryDelay));
+
+          return attemptQuery();
         }
 
         return null;
       }
+    };
 
-      // Parse the response and log it
-      const responseData = (await response.json()) as any;
-      console.log(`[Supabase] ${errorContext} response data:`, responseData);
-
-      // Check if we have an error in the response
-      if (responseData.error) {
-        console.error(`[Supabase] Query error for ${errorContext}:`, responseData.error);
-        return null;
-      }
-
-      // Extract the result data - Supabase sometimes returns it with or without .result
-      let resultData;
-
-      if (responseData.result) {
-        resultData = responseData.result;
-      } else if (Array.isArray(responseData)) {
-        resultData = responseData; // Direct array
-      } else if (responseData.data) {
-        resultData = responseData.data; // Some endpoints use .data
-      } else {
-        // Fallback for any other structure
-        resultData = responseData;
-      }
-
-      console.log(`[Supabase] ${errorContext} extracted result:`, resultData);
-
-      return resultData;
-    } catch (err) {
-      console.error(`[Supabase] Error in ${errorContext}:`, err);
-      return null;
-    }
+    return attemptQuery();
   };
 
   // Function to fetch database stats (memoized to prevent excessive renders)
@@ -246,6 +274,17 @@ function DatabaseTable({
         throw new Error('Failed to get service token');
       }
 
+      // Check if we're still connected
+      const connectionState = supabaseConnection.get();
+
+      if (!connectionState.isConnected) {
+        console.error('[Supabase] Connection lost while fetching data');
+        toast.error('Connection to Supabase has been lost. Please reconnect.');
+        setError('Connection to Supabase has been lost. Please reconnect.');
+
+        return;
+      }
+
       console.log('[Supabase] Starting data fetch for project:', selectedProject.id);
 
       // DIRECT TEST QUERY - Try to access test_table directly to debug
@@ -264,6 +303,17 @@ function DatabaseTable({
       // Execute each query separately for better error isolation
       const tableResult = await executeQuery(token, selectedProject.id, tableCountQuery, 'table count');
       console.log('[Supabase] Table count result:', tableResult);
+
+      // If all queries are failing, show a more helpful error
+      if (!tableResult) {
+        const networkIssueMsg =
+          'Network issues connecting to Supabase. Please check your connection or token validity.';
+        toast.error(networkIssueMsg);
+        setError(networkIssueMsg);
+        setIsLoading(false);
+
+        return;
+      }
 
       const rowResult = await executeQuery(token, selectedProject.id, rowCountQuery, 'row count');
       console.log('[Supabase] Row count result:', rowResult);
@@ -291,7 +341,16 @@ function DatabaseTable({
       }
     } catch (err) {
       console.error('[Supabase] Error fetching database stats:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error occurred');
+
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      setError(errorMessage);
+
+      // Show different message based on error type
+      if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+        toast.error('Network error connecting to Supabase. Please check your internet connection.');
+      } else {
+        toast.error(`Error fetching database stats: ${errorMessage}`);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -402,13 +461,68 @@ function DatabaseTable({
           <span className="mr-2 text-red-500 i-ph:warning-circle"></span>
           <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
         </div>
-        <div className="mt-2">
+        <div className="mt-2 flex gap-2">
           <button
             onClick={fetchDatabaseStats}
             className="text-xs font-medium text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
           >
             Try again
           </button>
+
+          {error.includes('Connection') && (
+            <button
+              onClick={async () => {
+                // Force reconnection flow
+                const currentConnection = supabaseConnection.get();
+
+                if (currentConnection.token) {
+                  toast.info('Attempting to reconnect to Supabase...');
+
+                  // Start fresh query after reconnection
+                  setIsLoading(true);
+                  setError(null);
+
+                  try {
+                    // Re-authenticate with existing token
+                    const response = await fetch('/api/supabase', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        token: currentConnection.token.trim(),
+                      }),
+                    });
+
+                    if (!response.ok) {
+                      throw new Error('Failed to reconnect');
+                    }
+
+                    const data = (await response.json()) as SupabaseConnectionResponse;
+
+                    updateSupabaseConnection({
+                      user: data.user,
+                      token: currentConnection.token,
+                      stats: data.stats,
+                    });
+
+                    toast.success('Successfully reconnected to Supabase');
+                    fetchDatabaseStats();
+                  } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : 'Failed to reconnect to Supabase';
+                    console.error('[Supabase] Reconnection error:', errorMessage);
+                    setError(errorMessage);
+                    toast.error(errorMessage);
+                  } finally {
+                    setIsLoading(false);
+                  }
+                }
+              }}
+              className="text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              Reconnect
+            </button>
+          )}
         </div>
       </div>
     );
@@ -543,6 +657,7 @@ export default function SupabaseDashboard() {
     storage: '–',
     users: '–',
   });
+  const [dbKey, setDbKey] = useState(Date.now());
 
   // Handle refresh of Supabase stats
   const handleRefresh = async () => {
@@ -670,6 +785,142 @@ export default function SupabaseDashboard() {
   const handleDatabaseStats = useCallback((stats: DatabaseStats) => {
     setDatabaseStats(stats);
   }, []);
+
+  // Helper function to check tables
+  const checkTables = async () => {
+    console.log('[Supabase] Force checking for tables...');
+
+    if (!connection.selectedProjectId) {
+      toast.error('No project selected');
+      return;
+    }
+
+    // Reset database stats display
+    setDatabaseStats({
+      tables: '–',
+      rows: '–',
+      storage: '–',
+      users: '–',
+    });
+
+    toast.info('Checking connection and test_table...');
+
+    try {
+      // Verify connection first
+      const connectionState = supabaseConnection.get();
+
+      if (!connectionState.isConnected || !connectionState.token) {
+        toast.error('Not connected to Supabase. Please reconnect first.');
+        return;
+      }
+
+      const token = connectionState.token;
+
+      // Direct query to check if test_table exists
+      const query = `
+        SELECT EXISTS (
+          SELECT 1 
+          FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'test_table'
+        ) as exists;
+      `;
+
+      const response = await fetch('/api/supabase/query', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          projectId: connection.selectedProjectId,
+          query,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Supabase] API error:', errorText);
+        toast.error('Error checking for test_table');
+
+        return;
+      }
+
+      const data = (await response.json()) as any;
+      console.log('[Supabase] Test table check response:', data);
+
+      // Handle different response formats
+      let exists = false;
+
+      if (data.result && Array.isArray(data.result) && data.result.length > 0) {
+        exists = data.result[0].exists === true || data.result[0].exists === 't';
+      } else if (Array.isArray(data) && data.length > 0) {
+        exists = data[0].exists === true || data[0].exists === 't';
+      }
+
+      if (exists) {
+        toast.success('✅ test_table exists in database!');
+        console.log('[Supabase] test_table exists, getting data...');
+
+        // Try to count rows in test_table
+        const countQuery = 'SELECT COUNT(*) as count FROM public.test_table';
+        const countResponse = await fetch('/api/supabase/query', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            projectId: connection.selectedProjectId,
+            query: countQuery,
+          }),
+        });
+
+        if (countResponse.ok) {
+          const countData = (await countResponse.json()) as any;
+          console.log('[Supabase] Row count in test_table:', countData);
+
+          let rowCount = '0';
+
+          if (countData.result && Array.isArray(countData.result) && countData.result.length > 0) {
+            rowCount = countData.result[0].count;
+          } else if (Array.isArray(countData) && countData.length > 0) {
+            rowCount = countData[0].count;
+          }
+
+          toast.info(`Found ${rowCount} rows in test_table`);
+        }
+
+        /*
+         * After successful test, refresh all database stats
+         * Find the selected project
+         */
+        const selectedProject = connection.stats?.projects?.find((p) => p.id === connection.selectedProjectId);
+
+        if (selectedProject) {
+          // Force update database tables component by creating new key
+          setDbKey(Date.now());
+
+          // Fetch full stats including tables
+          handleDatabaseStats({
+            tables: '–',
+            rows: '–',
+            storage: '–',
+            users: '–',
+          });
+        }
+      } else {
+        toast.error('❌ test_table not found in database!');
+        console.log('[Supabase] test_table not found');
+
+        // Show SQL to create the table
+        toast.info('Try running the CREATE TABLE SQL in Supabase SQL Editor', { autoClose: 8000 });
+      }
+    } catch (err) {
+      console.error('[Supabase] Error checking for test_table:', err);
+      toast.error(`Connection error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -886,121 +1137,7 @@ export default function SupabaseDashboard() {
             <h3 className="text-base font-medium text-bolt-elements-textPrimary">Database Dashboard</h3>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  console.log('[Supabase] Force checking for tables...');
-
-                  if (connection.selectedProjectId) {
-                    // Reset database stats display
-                    setDatabaseStats({
-                      tables: '–',
-                      rows: '–',
-                      storage: '–',
-                      users: '–',
-                    });
-
-                    toast.info('Checking for test_table...');
-
-                    // Create a utility function to check for test_table
-                    const checkForTestTable = async () => {
-                      try {
-                        const token = supabaseConnection.get().token;
-
-                        if (!token) {
-                          toast.error('No token available');
-                          return;
-                        }
-
-                        // Direct query to check if test_table exists
-                        const query = `
-                          SELECT EXISTS (
-                            SELECT 1 
-                            FROM information_schema.tables 
-                            WHERE table_schema = 'public' 
-                            AND table_name = 'test_table'
-                          ) as exists;
-                        `;
-
-                        const response = await fetch('/api/supabase/query', {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            Authorization: `Bearer ${token}`,
-                          },
-                          body: JSON.stringify({
-                            projectId: connection.selectedProjectId,
-                            query,
-                          }),
-                        });
-
-                        if (!response.ok) {
-                          const errorText = await response.text();
-                          console.error('[Supabase] API error:', errorText);
-                          toast.error('Error checking for test_table');
-
-                          return;
-                        }
-
-                        const data = (await response.json()) as any;
-                        console.log('[Supabase] Test table check response:', data);
-
-                        // Handle different response formats
-                        let exists = false;
-
-                        if (data.result && Array.isArray(data.result) && data.result.length > 0) {
-                          exists = data.result[0].exists === true || data.result[0].exists === 't';
-                        } else if (Array.isArray(data) && data.length > 0) {
-                          exists = data[0].exists === true || data[0].exists === 't';
-                        }
-
-                        if (exists) {
-                          toast.success('✅ test_table exists in database!');
-                          console.log('[Supabase] test_table exists, getting data...');
-
-                          // Try to count rows in test_table
-                          const countQuery = 'SELECT COUNT(*) as count FROM public.test_table';
-                          const countResponse = await fetch('/api/supabase/query', {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              Authorization: `Bearer ${token}`,
-                            },
-                            body: JSON.stringify({
-                              projectId: connection.selectedProjectId,
-                              query: countQuery,
-                            }),
-                          });
-
-                          if (countResponse.ok) {
-                            const countData = (await countResponse.json()) as any;
-                            console.log('[Supabase] Row count in test_table:', countData);
-
-                            let rowCount = '0';
-
-                            if (countData.result && Array.isArray(countData.result) && countData.result.length > 0) {
-                              rowCount = countData.result[0].count;
-                            } else if (Array.isArray(countData) && countData.length > 0) {
-                              rowCount = countData[0].count;
-                            }
-
-                            toast.info(`Found ${rowCount} rows in test_table`);
-                          }
-                        } else {
-                          toast.error('❌ test_table not found in database!');
-                          console.log('[Supabase] test_table not found');
-
-                          // Show SQL to create the table
-                          toast.info('Try running the CREATE TABLE SQL in Supabase SQL Editor', { autoClose: 8000 });
-                        }
-                      } catch (err) {
-                        console.error('[Supabase] Error checking for test_table:', err);
-                        toast.error('Error checking for test_table');
-                      }
-                    };
-
-                    // Execute the check
-                    checkForTestTable();
-                  }
-                }}
+                onClick={checkTables}
                 className="px-2 py-1 text-xs flex items-center gap-1 bg-blue-500 text-white rounded-md"
               >
                 <span className="i-ph:arrow-clockwise"></span>
@@ -1022,6 +1159,7 @@ export default function SupabaseDashboard() {
           {/* Database Tables */}
           <div className="space-y-4 border-t border-[#E5E5E5] dark:border-[#1A1A1A] pt-4 mt-2">
             <DatabaseTable
+              key={dbKey}
               selectedProject={{
                 id: connection.selectedProjectId,
                 name: connection.project?.name || 'Unknown Project',
