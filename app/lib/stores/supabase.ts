@@ -76,8 +76,10 @@ export function updateSupabaseConnection(connection: Partial<SupabaseConnectionS
   const newState = { ...currentState, ...connection };
   supabaseConnection.set(newState);
 
-  // Always save the connection state to localStorage to persist across chats
-  // Always save the connection state to localStorage to persist across chats
+  /*
+   * Always save the connection state to localStorage to persist across chats
+   * Always save the connection state to localStorage to persist across chats
+   */
   if (connection.user || connection.token || connection.selectedProjectId !== undefined) {
     localStorage.setItem('supabase_connection', JSON.stringify(newState));
   } else {

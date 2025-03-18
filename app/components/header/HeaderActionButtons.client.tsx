@@ -20,8 +20,6 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(isDropdownOpen);
-<<<<<<< HEAD
-=======
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
