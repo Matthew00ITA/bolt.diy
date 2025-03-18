@@ -91,23 +91,29 @@ export async function fetchSupabaseStats(token: string) {
   isFetchingStats.set(true);
 
   try {
-    const response = await fetch('https://api.supabase.com/v1/projects', {
+    // Use the server-side proxy instead of calling the Supabase API directly
+    const response = await fetch('/api/supabase', {
+      method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        token,
+      }),
     });
 
     if (!response.ok) {
       throw new Error('Failed to fetch projects');
     }
 
-    const projects = (await response.json()) as any;
+    const data = (await response.json()) as {
+      stats: SupabaseStats;
+      user: SupabaseUser;
+    };
 
     updateSupabaseConnection({
-      stats: {
-        projects,
-        totalProjects: projects.length,
-      },
+      stats: data.stats,
+      user: data.user,
     });
   } catch (error) {
     console.error('Failed to fetch Supabase stats:', error);

@@ -1,8 +1,32 @@
 import { json } from '@remix-run/node';
-import type { ActionFunction } from '@remix-run/node';
+import type { ActionFunction, LoaderFunction } from '@remix-run/node';
 import type { SupabaseProject } from '~/types/supabase';
 
+// Add a loader function to handle preflight requests
+export const loader: LoaderFunction = async () => {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+};
+
 export const action: ActionFunction = async ({ request }) => {
+  // Handle OPTIONS requests for CORS
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      },
+    });
+  }
+
   if (request.method !== 'POST') {
     return json({ error: 'Method not allowed' }, { status: 405 });
   }
@@ -10,6 +34,10 @@ export const action: ActionFunction = async ({ request }) => {
   // Inside the action function
   try {
     const { token } = (await request.json()) as any;
+
+    if (!token) {
+      return json({ error: 'Missing token' }, { status: 400 });
+    }
 
     const projectsResponse = await fetch('https://api.supabase.com/v1/projects', {
       headers: {
@@ -22,7 +50,15 @@ export const action: ActionFunction = async ({ request }) => {
       const errorText = await projectsResponse.text();
       console.error('Projects fetch failed:', errorText);
 
-      return json({ error: 'Failed to fetch projects' }, { status: 401 });
+      // More descriptive error message based on status code
+      const errorMessage =
+        projectsResponse.status === 401
+          ? 'Invalid Supabase token'
+          : projectsResponse.status === 403
+            ? 'Permission denied for Supabase API'
+            : 'Failed to fetch projects';
+
+      return json({ error: errorMessage }, { status: projectsResponse.status });
     }
 
     const projects = (await projectsResponse.json()) as SupabaseProject[];
@@ -36,12 +72,6 @@ export const action: ActionFunction = async ({ request }) => {
         uniqueProjectsMap.set(project.id, project);
       }
     }
-
-    // Debug log to see unique projects
-    console.log(
-      'Unique projects:',
-      Array.from(uniqueProjectsMap.values()).map((p) => ({ id: p.id, name: p.name })),
-    );
 
     const uniqueProjects = Array.from(uniqueProjectsMap.values());
 
@@ -61,7 +91,7 @@ export const action: ActionFunction = async ({ request }) => {
       {
         error: error instanceof Error ? error.message : 'Authentication failed',
       },
-      { status: 401 },
+      { status: 500 },
     );
   }
 };
