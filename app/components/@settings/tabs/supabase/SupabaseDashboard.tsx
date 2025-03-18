@@ -6,6 +6,88 @@ import { supabaseConnection, fetchSupabaseStats, updateSupabaseConnection } from
 import { classNames } from '~/utils/classNames';
 import type { SupabaseUser, SupabaseProject } from '~/types/supabase';
 
+// Query cache to reduce redundant API calls
+interface CacheEntry {
+  data: any;
+  expires: number;
+}
+
+class QueryCache {
+  private _cache: Record<string, CacheEntry> = {};
+  private _defaultTTL = 60000; // 1 minute default TTL
+
+  // Generate a cache key from query parameters
+  private _getCacheKey(projectId: string, query: string): string {
+    return `${projectId}:${query}`;
+  }
+
+  // Store data in cache with expiration
+  set(projectId: string, query: string, data: any, ttl: number = this._defaultTTL): void {
+    const key = this._getCacheKey(projectId, query);
+    const expires = Date.now() + ttl;
+    this._cache[key] = { data, expires };
+
+    // Log cache operations in dev mode
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Cache] Stored: ${key.substring(0, 40)}... (expires in ${ttl / 1000}s)`);
+    }
+  }
+
+  // Retrieve data from cache if not expired
+  get(projectId: string, query: string): any | null {
+    const key = this._getCacheKey(projectId, query);
+    const entry = this._cache[key];
+
+    if (!entry) {
+      return null;
+    }
+
+    // Check if entry has expired
+    if (Date.now() > entry.expires) {
+      // Remove expired entry
+      delete this._cache[key];
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[Cache] Expired: ${key.substring(0, 40)}...`);
+      }
+
+      return null;
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Cache] Hit: ${key.substring(0, 40)}...`);
+    }
+
+    return entry.data;
+  }
+
+  // Clear all entries for a project
+  clearProject(projectId: string): void {
+    const prefix = `${projectId}:`;
+    Object.keys(this._cache).forEach((key) => {
+      if (key.startsWith(prefix)) {
+        delete this._cache[key];
+      }
+    });
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Cache] Cleared all entries for project: ${projectId}`);
+    }
+  }
+
+  // Clear all cache entries
+  clear(): void {
+    this._cache = {};
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Cache] Cleared all entries');
+    }
+  }
+}
+
+// Create a singleton instance
+const queryCache = new QueryCache();
+
 // Types
 type Project = {
   id: string;
@@ -150,6 +232,18 @@ function DatabaseTable({
   const [tables, setTables] = useState<DatabaseTable[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSqlEditor, setShowSqlEditor] = useState(false);
+  const [customSql, setCustomSql] = useState('');
+  const [sqlQueryLoading, setSqlQueryLoading] = useState(false);
+  const [sqlQueryResults, setSqlQueryResults] = useState<any[] | null>(null);
+  const [sqlQueryError, setSqlQueryError] = useState<string | null>(null);
+  const [selectedTable, setSelectedTable] = useState<DatabaseTable | null>(null);
+  const [tableStructure, setTableStructure] = useState<any[]>([]);
+  const [tableStructureLoading, setTableStructureLoading] = useState(false);
+  const [tableStructureError, setTableStructureError] = useState<string | null>(null);
+  const [tableData, setTableData] = useState<any[]>([]);
+  const [tableDataLoading, setTableDataLoading] = useState(false);
+  const [tableDataError, setTableDataError] = useState<string | null>(null);
 
   // Track the last fetch time to avoid too many requests
   const lastFetchTimeRef = useRef<number>(0);
@@ -157,6 +251,14 @@ function DatabaseTable({
 
   // Function to safely execute a query with proper error handling
   const executeQuery = async (token: string, projectId: string, query: string, errorContext: string) => {
+    // Check cache first
+    const cachedResult = queryCache.get(projectId, query);
+
+    if (cachedResult !== null) {
+      console.log(`[Supabase] ${errorContext} using cached result`);
+      return cachedResult;
+    }
+
     let retries = 0;
     const maxRetries = 2;
     const retryDelay = 1000; // 1 second
@@ -224,6 +326,10 @@ function DatabaseTable({
 
         console.log(`[Supabase] ${errorContext} extracted result:`, resultData);
 
+        // Cache the result (different TTL based on query type)
+        const ttl = query.toLowerCase().includes('count') ? 30000 : 60000; // Shorter TTL for counts
+        queryCache.set(projectId, query, resultData, ttl);
+
         return resultData;
       } catch (err) {
         console.error(`[Supabase] Error in ${errorContext}:`, err);
@@ -246,6 +352,137 @@ function DatabaseTable({
     };
 
     return attemptQuery();
+  };
+
+  // Execute custom SQL query from the editor
+  const executeCustomQuery = async () => {
+    if (!customSql.trim() || !selectedProject.id) {
+      return;
+    }
+
+    setSqlQueryLoading(true);
+    setSqlQueryResults(null);
+    setSqlQueryError(null);
+
+    try {
+      const token = await fetchServiceToken(selectedProject.id);
+
+      if (!token) {
+        throw new Error('Failed to get service token');
+      }
+
+      const result = await executeQuery(token, selectedProject.id, customSql, 'custom query');
+
+      if (result === null) {
+        throw new Error('Failed to execute query');
+      }
+
+      setSqlQueryResults(result);
+    } catch (err) {
+      console.error('Error executing custom query:', err);
+      setSqlQueryError(err instanceof Error ? err.message : 'Unknown error executing query');
+    } finally {
+      setSqlQueryLoading(false);
+    }
+  };
+
+  // View table details
+  const viewTableDetails = async (table: DatabaseTable) => {
+    if (!selectedProject.id) {
+      return;
+    }
+
+    setSelectedTable(table);
+    setTableStructure([]);
+    setTableData([]);
+    setTableStructureLoading(true);
+    setTableDataLoading(true);
+    setTableStructureError(null);
+    setTableDataError(null);
+
+    try {
+      const token = await fetchServiceToken(selectedProject.id);
+
+      if (!token) {
+        throw new Error('Failed to get service token');
+      }
+
+      // Query 1: Get table structure with primary key info
+      const structureQuery = `
+        SELECT 
+          c.column_name, 
+          c.data_type, 
+          c.is_nullable,
+          CASE WHEN pk.constraint_name IS NOT NULL THEN true ELSE false END as is_primary_key
+        FROM 
+          information_schema.columns c
+        LEFT JOIN (
+          SELECT 
+            tc.constraint_name, 
+            ku.column_name
+          FROM 
+            information_schema.table_constraints tc
+          JOIN 
+            information_schema.key_column_usage ku ON tc.constraint_name = ku.constraint_name
+          WHERE 
+            tc.constraint_type = 'PRIMARY KEY'
+        ) pk ON c.column_name = pk.column_name
+        WHERE 
+          c.table_schema = '${table.schema}' 
+          AND c.table_name = '${table.name}'
+        ORDER BY 
+          c.ordinal_position;
+      `;
+
+      // Query 2: Get table data preview
+      const dataQuery = `SELECT * FROM ${table.schema}.${table.name} LIMIT 10;`;
+
+      // Execute both queries in parallel
+      const [structureResult, dataResult] = await Promise.all([
+        executeQuery(token, selectedProject.id, structureQuery, 'table structure'),
+        executeQuery(token, selectedProject.id, dataQuery, 'table data'),
+      ]);
+
+      if (structureResult) {
+        setTableStructure(structureResult);
+      } else {
+        setTableStructureError('Failed to fetch table structure');
+      }
+
+      if (dataResult) {
+        setTableData(dataResult);
+      } else {
+        setTableDataError('Failed to fetch table data');
+      }
+    } catch (err) {
+      console.error('Error fetching table details:', err);
+
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setTableStructureError(errorMessage);
+      setTableDataError(errorMessage);
+    } finally {
+      setTableStructureLoading(false);
+      setTableDataLoading(false);
+    }
+  };
+
+  // New function to execute multiple queries in batch
+  const executeBatchQueries = async (
+    token: string,
+    projectId: string,
+    queries: { query: string; context: string }[],
+  ): Promise<Record<string, any>> => {
+    const results: Record<string, any> = {};
+
+    // Use Promise.all to run queries in parallel
+    await Promise.all(
+      queries.map(async ({ query, context }) => {
+        const result = await executeQuery(token, projectId, query, context);
+        results[context] = result;
+      }),
+    );
+
+    return results;
   };
 
   // Function to fetch database stats (memoized to prevent excessive renders)
@@ -287,25 +524,39 @@ function DatabaseTable({
 
       console.log('[Supabase] Starting data fetch for project:', selectedProject.id);
 
-      // DIRECT TEST QUERY - Try to access test_table directly to debug
-      const testTableQuery = 'SELECT COUNT(*) FROM public.test_table';
-      const testResult = await executeQuery(token, selectedProject.id, testTableQuery, 'test_table check');
-      console.log('[Supabase] Test table check result:', testResult);
+      // Define all queries to execute
+      const queries = [
+        {
+          query:
+            "SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'public' AND table_name NOT LIKE 'pg_%'",
+          context: 'table_count',
+        },
+        {
+          query: "SELECT COALESCE(SUM(n_live_tup), 0) as count FROM pg_stat_user_tables WHERE schemaname = 'public'",
+          context: 'row_count',
+        },
+        {
+          query: 'SELECT pg_size_pretty(pg_database_size(current_database())) as size',
+          context: 'storage',
+        },
+        {
+          query: 'SELECT COUNT(*) as count FROM auth.users',
+          context: 'user_count',
+        },
+        {
+          query: 'SELECT COUNT(*) FROM public.test_table',
+          context: 'test_table_check',
+        },
+      ];
 
-      // Simple queries - less likely to fail than a complex query
-      const tableCountQuery =
-        "SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'public' AND table_name NOT LIKE 'pg_%'";
-      const rowCountQuery =
-        "SELECT COALESCE(SUM(n_live_tup), 0) as count FROM pg_stat_user_tables WHERE schemaname = 'public'";
-      const storageQuery = 'SELECT pg_size_pretty(pg_database_size(current_database())) as size';
-      const userCountQuery = 'SELECT COUNT(*) as count FROM auth.users';
+      // Execute all queries in batch
+      const batchResults = await executeBatchQueries(token, selectedProject.id, queries);
 
-      // Execute each query separately for better error isolation
-      const tableResult = await executeQuery(token, selectedProject.id, tableCountQuery, 'table count');
-      console.log('[Supabase] Table count result:', tableResult);
+      // Process results
+      console.log('[Supabase] Batch query results:', batchResults);
 
-      // If all queries are failing, show a more helpful error
-      if (!tableResult) {
+      // Check if table count query succeeded
+      if (!batchResults.table_count) {
         const networkIssueMsg =
           'Network issues connecting to Supabase. Please check your connection or token validity.';
         toast.error(networkIssueMsg);
@@ -315,28 +566,28 @@ function DatabaseTable({
         return;
       }
 
-      const rowResult = await executeQuery(token, selectedProject.id, rowCountQuery, 'row count');
-      console.log('[Supabase] Row count result:', rowResult);
-
-      const storageResult = await executeQuery(token, selectedProject.id, storageQuery, 'storage');
-      console.log('[Supabase] Storage result:', storageResult);
-
-      const userResult = await executeQuery(token, selectedProject.id, userCountQuery, 'user count');
-      console.log('[Supabase] User count result:', userResult);
-
-      // Use default values for any query that failed
+      // Process results into stats
       const stats = {
-        tables: tableResult && tableResult[0]?.count ? tableResult[0].count.toString() : '0',
-        rows: rowResult && rowResult[0]?.count ? formatNumber(rowResult[0].count) : '0',
-        storage: storageResult && storageResult[0]?.size ? storageResult[0].size : '0 bytes',
-        users: userResult && userResult[0]?.count ? userResult[0].count.toString() : '0',
+        tables:
+          batchResults.table_count && batchResults.table_count[0]?.count
+            ? batchResults.table_count[0].count.toString()
+            : '0',
+        rows:
+          batchResults.row_count && batchResults.row_count[0]?.count
+            ? formatNumber(batchResults.row_count[0].count)
+            : '0',
+        storage: batchResults.storage && batchResults.storage[0]?.size ? batchResults.storage[0].size : '0 bytes',
+        users:
+          batchResults.user_count && batchResults.user_count[0]?.count
+            ? batchResults.user_count[0].count.toString()
+            : '0',
       };
 
       console.log('[Supabase] Stats compiled:', stats);
       setDatabaseStats(stats);
 
       // Only fetch table list if we have tables and only once
-      if (tableResult && tableResult[0]?.count > 0 && tables.length === 0) {
+      if (batchResults.table_count && batchResults.table_count[0]?.count > 0 && tables.length === 0) {
         await fetchTablesList(token, selectedProject.id);
       }
     } catch (err) {
@@ -354,7 +605,7 @@ function DatabaseTable({
     } finally {
       setIsLoading(false);
     }
-  }, [selectedProject, setDatabaseStats, tables.length]);
+  }, [selectedProject, setDatabaseStats, tables.length, executeBatchQueries]);
 
   // Helper function to format large numbers
   const formatNumber = (num: number | string): string => {
@@ -533,19 +784,301 @@ function DatabaseTable({
     <div className="mt-4" data-testid="database-table">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-lg font-medium">Database Tables</h3>
-        <button
-          onClick={fetchDatabaseStats}
-          disabled={isLoading}
-          className="flex items-center rounded-md bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700 dark:hover:bg-gray-700"
-        >
-          {isLoading ? (
-            <span className="mr-1.5 inline-block h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"></span>
-          ) : (
-            <span className="mr-1.5 i-ph:arrow-clockwise"></span>
-          )}
-          Refresh
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowSqlEditor(!showSqlEditor)}
+            className="flex items-center rounded-md bg-[#3ECF8E] px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-[#3BBF84]"
+          >
+            <span className="mr-1.5 i-ph:code"></span>
+            SQL Editor
+          </button>
+          <button
+            onClick={fetchDatabaseStats}
+            disabled={isLoading}
+            className="flex items-center rounded-md bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700 dark:hover:bg-gray-700"
+          >
+            {isLoading ? (
+              <span className="mr-1.5 inline-block h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"></span>
+            ) : (
+              <span className="mr-1.5 i-ph:arrow-clockwise"></span>
+            )}
+            Refresh
+          </button>
+        </div>
       </div>
+
+      {/* SQL Editor */}
+      {showSqlEditor && (
+        <div className="mb-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+          <div className="mb-2 flex items-center justify-between">
+            <h4 className="text-sm font-medium">Custom SQL Query</h4>
+            <div className="flex gap-1">
+              <button
+                onClick={() => {
+                  setCustomSql("SELECT * FROM information_schema.tables WHERE table_schema = 'public' LIMIT 10;");
+                }}
+                className="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                Tables
+              </button>
+              <button
+                onClick={() => {
+                  setCustomSql('SELECT * FROM public.test_table LIMIT 100;');
+                }}
+                className="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                test_table
+              </button>
+              <button
+                onClick={() => {
+                  setCustomSql(
+                    `
+SELECT 
+  table_name, 
+  column_name, 
+  data_type 
+FROM 
+  information_schema.columns 
+WHERE 
+  table_schema = 'public' 
+ORDER BY 
+  table_name, 
+  ordinal_position
+LIMIT 50;`.trim(),
+                  );
+                }}
+                className="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                Columns
+              </button>
+            </div>
+          </div>
+          <textarea
+            value={customSql}
+            onChange={(e) => setCustomSql(e.target.value)}
+            className="mb-2 h-32 w-full rounded-md border border-gray-300 bg-[#F8F8F8] p-2 font-mono text-sm dark:border-gray-700 dark:bg-[#1A1A1A]"
+            spellCheck={false}
+          />
+          <div className="flex justify-end">
+            <button
+              onClick={executeCustomQuery}
+              disabled={sqlQueryLoading || !customSql.trim()}
+              className="flex items-center rounded-md bg-[#3ECF8E] px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-[#3BBF84] disabled:opacity-50"
+            >
+              {sqlQueryLoading ? (
+                <span className="mr-1.5 inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+              ) : (
+                <span className="mr-1.5 i-ph:play"></span>
+              )}
+              Execute
+            </button>
+          </div>
+
+          {/* SQL Query Results */}
+          {sqlQueryResults && (
+            <div className="mt-3">
+              <div className="mb-1 flex items-center justify-between">
+                <h5 className="text-xs font-medium text-gray-700 dark:text-gray-300">Results</h5>
+                <div className="text-xs text-gray-500">
+                  {Array.isArray(sqlQueryResults) ? `${sqlQueryResults.length} rows` : '1 result'}
+                </div>
+              </div>
+              <div className="max-h-80 overflow-auto rounded-md border border-gray-200 dark:border-gray-700">
+                {Array.isArray(sqlQueryResults) && sqlQueryResults.length > 0 ? (
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-800">
+                      <tr>
+                        {Object.keys(sqlQueryResults[0]).map((key) => (
+                          <th
+                            key={key}
+                            scope="col"
+                            className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
+                          >
+                            {key}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
+                      {sqlQueryResults.map((row, i) => (
+                        <tr key={i}>
+                          {Object.values(row).map((value: any, j) => (
+                            <td
+                              key={j}
+                              className="whitespace-nowrap px-4 py-2 text-sm text-gray-500 dark:text-gray-400"
+                            >
+                              {value === null ? (
+                                <span className="italic text-gray-400 dark:text-gray-600">null</span>
+                              ) : typeof value === 'object' ? (
+                                JSON.stringify(value)
+                              ) : (
+                                String(value)
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : sqlQueryError ? (
+                  <div className="p-4 text-sm text-red-600 dark:text-red-400">
+                    <div className="font-medium">Error:</div>
+                    <div className="mt-1">{sqlQueryError}</div>
+                  </div>
+                ) : (
+                  <div className="p-4 text-sm text-gray-500">
+                    {sqlQueryResults === null
+                      ? 'Execute a query to see results'
+                      : typeof sqlQueryResults === 'object'
+                        ? JSON.stringify(sqlQueryResults, null, 2)
+                        : String(sqlQueryResults)}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Table Detail View */}
+      {selectedTable && (
+        <div className="mb-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+          <div className="mb-3 flex items-center justify-between">
+            <h4 className="text-sm font-medium">
+              Table: <span className="font-semibold text-[#3ECF8E]">{selectedTable.name}</span>
+            </h4>
+            <button
+              onClick={() => setSelectedTable(null)}
+              className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-500 dark:hover:bg-gray-800"
+            >
+              <span className="i-ph:x h-4 w-4"></span>
+            </button>
+          </div>
+
+          <div className="mb-3">
+            <div className="mb-2 flex items-center justify-between">
+              <h5 className="text-xs font-medium text-gray-700 dark:text-gray-300">Structure</h5>
+              {tableStructureLoading && (
+                <div className="text-xs text-gray-500">
+                  <span className="mr-1 inline-block h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"></span>
+                  Loading...
+                </div>
+              )}
+            </div>
+            {tableStructure.length > 0 ? (
+              <div className="max-h-48 overflow-auto rounded-md border border-gray-200 dark:border-gray-700">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-800">
+                    <tr>
+                      <th
+                        scope="col"
+                        className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
+                      >
+                        Column
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
+                      >
+                        Type
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
+                      >
+                        Nullable
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
+                    {tableStructure.map((column, i) => (
+                      <tr key={i}>
+                        <td className="whitespace-nowrap px-4 py-2 text-sm font-medium text-gray-900 dark:text-white">
+                          {column.column_name}
+                          {column.is_primary_key && <span className="ml-1 text-xs text-[#3ECF8E]">🔑</span>}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+                          {column.data_type}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+                          {column.is_nullable === 'YES' ? 'Yes' : 'No'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : tableStructureError ? (
+              <div className="rounded-md bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+                {tableStructureError}
+              </div>
+            ) : (
+              <div className="rounded-md bg-gray-50 p-3 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                No structure information available.
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <h5 className="text-xs font-medium text-gray-700 dark:text-gray-300">Data Preview</h5>
+              {tableDataLoading && (
+                <div className="text-xs text-gray-500">
+                  <span className="mr-1 inline-block h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"></span>
+                  Loading...
+                </div>
+              )}
+            </div>
+            {tableData.length > 0 ? (
+              <div className="max-h-64 overflow-auto rounded-md border border-gray-200 dark:border-gray-700">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-800">
+                    <tr>
+                      {Object.keys(tableData[0]).map((key) => (
+                        <th
+                          key={key}
+                          scope="col"
+                          className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
+                        >
+                          {key}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
+                    {tableData.map((row, i) => (
+                      <tr key={i}>
+                        {Object.entries(row).map(([key, value]) => (
+                          <td
+                            key={key}
+                            className="whitespace-nowrap px-4 py-2 text-sm text-gray-500 dark:text-gray-400"
+                          >
+                            {value === null ? (
+                              <span className="italic text-gray-400 dark:text-gray-600">null</span>
+                            ) : typeof value === 'object' ? (
+                              JSON.stringify(value)
+                            ) : (
+                              String(value)
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : tableDataError ? (
+              <div className="rounded-md bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+                {tableDataError}
+              </div>
+            ) : (
+              <div className="rounded-md bg-gray-50 p-3 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                No data available.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {isLoading && tables.length === 0 ? (
         <div className="flex h-32 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700">
@@ -577,6 +1110,12 @@ function DatabaseTable({
                 >
                   Type
                 </th>
+                <th
+                  scope="col"
+                  className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
+                >
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
@@ -589,6 +1128,16 @@ function DatabaseTable({
                     {table.schema}
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{table.type}</td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm">
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => viewTableDetails(table)}
+                        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                      >
+                        View Details
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -803,7 +1352,7 @@ export default function SupabaseDashboard() {
       users: '–',
     });
 
-    toast.info('Checking connection and test_table...');
+    toast.info('Checking connection and listing all tables...');
 
     try {
       // Verify connection first
@@ -816,14 +1365,21 @@ export default function SupabaseDashboard() {
 
       const token = connectionState.token;
 
-      // Direct query to check if test_table exists
+      // Query to get all tables in the database
       const query = `
-        SELECT EXISTS (
-          SELECT 1 
-          FROM information_schema.tables 
-          WHERE table_schema = 'public' 
-          AND table_name = 'test_table'
-        ) as exists;
+        SELECT 
+          table_name, 
+          table_schema,
+          table_type
+        FROM 
+          information_schema.tables 
+        WHERE 
+          table_schema NOT IN ('pg_catalog', 'information_schema') 
+          AND table_name NOT LIKE 'pg_%' 
+          AND table_name NOT LIKE '_prisma_%'
+        ORDER BY 
+          table_schema, 
+          table_name;
       `;
 
       const response = await fetch('/api/supabase/query', {
@@ -841,83 +1397,101 @@ export default function SupabaseDashboard() {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('[Supabase] API error:', errorText);
-        toast.error('Error checking for test_table');
+        toast.error('Error retrieving tables list');
 
         return;
       }
 
       const data = (await response.json()) as any;
-      console.log('[Supabase] Test table check response:', data);
+      console.log('[Supabase] Tables check response:', data);
 
-      // Handle different response formats
-      let exists = false;
+      // Process the results
+      let tablesList: Array<{ table_name: string; table_schema: string; table_type: string }> = [];
 
-      if (data.result && Array.isArray(data.result) && data.result.length > 0) {
-        exists = data.result[0].exists === true || data.result[0].exists === 't';
-      } else if (Array.isArray(data) && data.length > 0) {
-        exists = data[0].exists === true || data[0].exists === 't';
+      if (data.result && Array.isArray(data.result)) {
+        tablesList = data.result;
+      } else if (Array.isArray(data)) {
+        tablesList = data;
+      } else if (data.data && Array.isArray(data.data)) {
+        tablesList = data.data;
       }
 
-      if (exists) {
-        toast.success('✅ test_table exists in database!');
-        console.log('[Supabase] test_table exists, getting data...');
+      if (tablesList.length > 0) {
+        toast.success(`Found ${tablesList.length} tables in database!`);
 
-        // Try to count rows in test_table
-        const countQuery = 'SELECT COUNT(*) as count FROM public.test_table';
-        const countResponse = await fetch('/api/supabase/query', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            projectId: connection.selectedProjectId,
-            query: countQuery,
-          }),
-        });
+        // Log all tables
+        console.log('[Supabase] Tables found:', tablesList);
 
-        if (countResponse.ok) {
-          const countData = (await countResponse.json()) as any;
-          console.log('[Supabase] Row count in test_table:', countData);
+        // Display tables in a toast or alert for quick visibility
+        const tableNames = tablesList
+          .map((t: { table_schema: string; table_name: string }) => `${t.table_schema}.${t.table_name}`)
+          .join(', ');
 
-          let rowCount = '0';
-
-          if (countData.result && Array.isArray(countData.result) && countData.result.length > 0) {
-            rowCount = countData.result[0].count;
-          } else if (Array.isArray(countData) && countData.length > 0) {
-            rowCount = countData[0].count;
-          }
-
-          toast.info(`Found ${rowCount} rows in test_table`);
+        if (tablesList.length <= 10) {
+          toast.info(`Tables: ${tableNames}`, { autoClose: 8000 });
+        } else {
+          toast.info(`Found ${tablesList.length} tables. Check console for details.`, { autoClose: 5000 });
         }
 
-        /*
-         * After successful test, refresh all database stats
-         * Find the selected project
-         */
-        const selectedProject = connection.stats?.projects?.find((p) => p.id === connection.selectedProjectId);
+        // Check specifically for test_table
+        const testTable = tablesList.find(
+          (t: { table_name: string; table_schema: string }) =>
+            t.table_name === 'test_table' && (t.table_schema === 'public' || t.table_schema === ''),
+        );
 
-        if (selectedProject) {
-          // Force update database tables component by creating new key
-          setDbKey(Date.now());
+        if (testTable) {
+          toast.success('✅ test_table exists in database!');
 
-          // Fetch full stats including tables
-          handleDatabaseStats({
-            tables: '–',
-            rows: '–',
-            storage: '–',
-            users: '–',
+          // Try to count rows in test_table
+          const countQuery = 'SELECT COUNT(*) as count FROM public.test_table';
+          const countResponse = await fetch('/api/supabase/query', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              projectId: connection.selectedProjectId,
+              query: countQuery,
+            }),
           });
+
+          if (countResponse.ok) {
+            const countData = (await countResponse.json()) as any;
+            console.log('[Supabase] Row count in test_table:', countData);
+
+            let rowCount = '0';
+
+            if (countData.result && Array.isArray(countData.result) && countData.result.length > 0) {
+              rowCount = countData.result[0].count;
+            } else if (Array.isArray(countData) && countData.length > 0) {
+              rowCount = countData[0].count;
+            }
+
+            toast.info(`Found ${rowCount} rows in test_table`);
+          }
+        } else {
+          toast.warn('❌ test_table not found among the tables!');
         }
+
+        // Force update database tables component by creating new key
+        setDbKey(Date.now());
+
+        // Fetch full stats including tables
+        handleDatabaseStats({
+          tables: tablesList.length.toString(),
+          rows: '–',
+          storage: '–',
+          users: '–',
+        });
       } else {
-        toast.error('❌ test_table not found in database!');
-        console.log('[Supabase] test_table not found');
+        toast.warn('No tables found in database!');
 
         // Show SQL to create the table
         toast.info('Try running the CREATE TABLE SQL in Supabase SQL Editor', { autoClose: 8000 });
       }
     } catch (err) {
-      console.error('[Supabase] Error checking for test_table:', err);
+      console.error('[Supabase] Error checking for tables:', err);
       toast.error(`Connection error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
@@ -1141,7 +1715,7 @@ export default function SupabaseDashboard() {
                 className="px-2 py-1 text-xs flex items-center gap-1 bg-blue-500 text-white rounded-md"
               >
                 <span className="i-ph:arrow-clockwise"></span>
-                Check Tables
+                List All Tables
               </button>
               <div className="px-2 py-1 text-xs text-[#3ECF8E] bg-[#3ECF8E]/5 dark:bg-[#3ECF8E]/10 rounded-md">
                 {connection.project?.name || 'Current Project'}
