@@ -5,6 +5,9 @@ import { toast } from 'react-toastify';
 import { supabaseConnection, fetchSupabaseStats, updateSupabaseConnection } from '~/lib/stores/supabase';
 import { classNames } from '~/utils/classNames';
 import type { SupabaseUser, SupabaseProject } from '~/types/supabase';
+import { Dropdown, DropdownItem } from '~/components/ui/Dropdown';
+import { Button } from '~/components/ui/Button';
+import { Input } from '~/components/ui/Input';
 
 // Query cache to reduce redundant API calls
 interface CacheEntry {
@@ -136,20 +139,28 @@ const StatsCard = ({
   value,
   icon,
   color,
+  isLoading = false,
 }: {
   title: string;
   value: string | number;
   icon: string;
   color: string;
+  isLoading?: boolean;
 }) => (
-  <div className="p-4 rounded-lg border border-[#E5E5E5] dark:border-[#1A1A1A] bg-white dark:bg-[#0A0A0A]">
+  <div className="p-4 rounded-lg border border-bolt-elements-border bg-bolt-elements-background transition-all hover:shadow-md hover:border-bolt-elements-button-primary-text dark:hover:border-bolt-elements-button-primary-text/50">
     <div className="flex items-center justify-between">
       <div>
         <h4 className="text-sm text-bolt-elements-textSecondary mb-1">{title}</h4>
-        <p className="text-lg font-semibold text-bolt-elements-textPrimary">{value}</p>
+        {isLoading ? (
+          <div className="h-6 w-16 bg-bolt-elements-background-depth-2 rounded animate-pulse"></div>
+        ) : (
+          <p className="text-lg font-semibold text-bolt-elements-textPrimary animate-fadeIn">{value}</p>
+        )}
       </div>
-      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${color}`}>
-        <div className={`${icon} w-4 h-4 text-white`}></div>
+      <div
+        className={`w-10 h-10 rounded-full flex items-center justify-center ${color} transition-transform hover:scale-110`}
+      >
+        <div className={`${icon} w-5 h-5 text-white`}></div>
       </div>
     </div>
   </div>
@@ -167,16 +178,17 @@ const ProjectCard = ({
 }) => (
   <div
     className={classNames(
-      'p-4 rounded-lg border transition-colors',
+      'p-4 rounded-lg border transition-colors cursor-pointer',
       isSelected
-        ? 'border-[#3ECF8E] bg-[#3ECF8E]/5 dark:bg-[#3ECF8E]/10'
-        : 'border-[#E5E5E5] dark:border-[#1A1A1A] hover:border-[#3ECF8E] dark:hover:border-[#3ECF8E]',
+        ? 'border-bolt-elements-button-primary-text bg-bolt-elements-button-primary-background/20 dark:bg-bolt-elements-button-primary-background/30'
+        : 'border-bolt-elements-border hover:border-bolt-elements-button-primary-text dark:hover:border-bolt-elements-button-primary-text',
     )}
+    onClick={() => onSelect(project.id)}
   >
     <div className="flex items-center justify-between">
       <div>
         <h4 className="text-sm font-medium text-bolt-elements-textPrimary flex items-center gap-2">
-          <div className="i-ph:database w-4 h-4 text-[#3ECF8E]" />
+          <div className="i-ph:database w-4 h-4 text-bolt-elements-button-primary-text" />
           {project.name}
         </h4>
         <div className="flex items-center gap-2 mt-2 text-xs text-bolt-elements-textSecondary">
@@ -192,30 +204,18 @@ const ProjectCard = ({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <div className="text-xs text-bolt-elements-textSecondary px-2 py-1 rounded-md bg-[#F0F0F0] dark:bg-[#252525]">
+        <div className="text-xs text-bolt-elements-textSecondary px-2 py-1 rounded-md bg-bolt-elements-background-depth-1">
           <span className="flex items-center gap-1">
             <div className="i-ph:circle-wavy-check w-3 h-3" />
             {project.status}
           </span>
         </div>
-        <button
-          onClick={() => onSelect(project.id)}
-          className={classNames(
-            'px-3 py-1 rounded-md text-xs',
-            isSelected
-              ? 'bg-[#3ECF8E] text-white'
-              : 'bg-[#F0F0F0] dark:bg-[#252525] text-bolt-elements-textSecondary hover:bg-[#3ECF8E] hover:text-white',
-          )}
-        >
-          {isSelected ? (
-            <span className="flex items-center gap-1">
-              <div className="i-ph:check w-3 h-3" />
-              Selected
-            </span>
-          ) : (
-            'Select'
-          )}
-        </button>
+        {isSelected && (
+          <div className="px-2 py-1 rounded-md text-xs bg-bolt-elements-button-primary-background text-bolt-elements-button-primary-text flex items-center gap-1">
+            <div className="i-ph:check w-3 h-3" />
+            Selected
+          </div>
+        )}
       </div>
     </div>
   </div>
@@ -230,6 +230,8 @@ function DatabaseTable({
   setDatabaseStats: (stats: DatabaseStats) => void;
 }) {
   const [tables, setTables] = useState<DatabaseTable[]>([]);
+  const [filteredTables, setFilteredTables] = useState<DatabaseTable[]>([]);
+  const [tableSearch, setTableSearch] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSqlEditor, setShowSqlEditor] = useState(false);
@@ -691,6 +693,20 @@ function DatabaseTable({
     }
   };
 
+  // Filter tables when search input or tables list changes
+  useEffect(() => {
+    if (!tableSearch.trim()) {
+      setFilteredTables(tables);
+      return;
+    }
+
+    const searchLower = tableSearch.toLowerCase();
+    const filtered = tables.filter(
+      (table) => table.name.toLowerCase().includes(searchLower) || table.schema.toLowerCase().includes(searchLower),
+    );
+    setFilteredTables(filtered);
+  }, [tableSearch, tables]);
+
   // Add console logs for debugging
   useEffect(() => {
     if (selectedProject) {
@@ -707,15 +723,15 @@ function DatabaseTable({
   // Error display
   if (error) {
     return (
-      <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950">
+      <div className="mt-4 rounded-lg border border-bolt-elements-border bg-bolt-elements-background">
         <div className="flex items-center">
-          <span className="mr-2 text-red-500 i-ph:warning-circle"></span>
-          <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+          <span className="mr-2 text-bolt-elements-errorText i-ph:warning-circle"></span>
+          <p className="text-sm text-bolt-elements-errorText">{error}</p>
         </div>
         <div className="mt-2 flex gap-2">
           <button
             onClick={fetchDatabaseStats}
-            className="text-xs font-medium text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+            className="text-xs font-medium text-bolt-elements-errorText hover:text-bolt-elements-errorText/80 transition-colors"
           >
             Try again
           </button>
@@ -769,7 +785,7 @@ function DatabaseTable({
                   }
                 }
               }}
-              className="text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+              className="text-xs font-medium text-bolt-elements-errorText hover:text-bolt-elements-errorText/80 transition-colors"
             >
               Reconnect
             </button>
@@ -783,53 +799,60 @@ function DatabaseTable({
   return (
     <div className="mt-4" data-testid="database-table">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-lg font-medium">Database Tables</h3>
+        <h3 className="text-lg font-medium text-bolt-elements-textPrimary">Database Tables</h3>
         <div className="flex gap-2">
-          <button
+          <Button
             onClick={() => setShowSqlEditor(!showSqlEditor)}
-            className="flex items-center rounded-md bg-[#3ECF8E] px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-[#3BBF84]"
+            size="sm"
+            className="flex items-center gap-1.5 bg-bolt-elements-button-primary-background text-bolt-elements-button-primary-text hover:bg-bolt-elements-button-primary-backgroundHover transition-colors"
           >
-            <span className="mr-1.5 i-ph:code"></span>
+            <span className="i-ph:code"></span>
             SQL Editor
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={fetchDatabaseStats}
             disabled={isLoading}
-            className="flex items-center rounded-md bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700 dark:hover:bg-gray-700"
+            size="sm"
+            variant="secondary"
+            className="flex items-center gap-1.5"
           >
             {isLoading ? (
-              <span className="mr-1.5 inline-block h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"></span>
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-bolt-elements-border border-t-bolt-elements-textSecondary"></span>
             ) : (
-              <span className="mr-1.5 i-ph:arrow-clockwise"></span>
+              <span className="i-ph:arrow-clockwise"></span>
             )}
             Refresh
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* SQL Editor */}
       {showSqlEditor && (
-        <div className="mb-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+        <div className="mb-4 rounded-lg border border-bolt-elements-border p-4 bg-bolt-elements-background custom-sql-editor">
           <div className="mb-2 flex items-center justify-between">
-            <h4 className="text-sm font-medium">Custom SQL Query</h4>
+            <h4 className="text-sm font-medium text-bolt-elements-textPrimary">Custom SQL Query</h4>
             <div className="flex gap-1">
-              <button
+              <Button
                 onClick={() => {
                   setCustomSql("SELECT * FROM information_schema.tables WHERE table_schema = 'public' LIMIT 10;");
                 }}
-                className="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                size="sm"
+                variant="secondary"
+                className="text-xs"
               >
                 Tables
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   setCustomSql('SELECT * FROM public.test_table LIMIT 100;');
                 }}
-                className="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                size="sm"
+                variant="secondary"
+                className="text-xs"
               >
                 test_table
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   setCustomSql(
                     `
@@ -847,68 +870,72 @@ ORDER BY
 LIMIT 50;`.trim(),
                   );
                 }}
-                className="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                size="sm"
+                variant="secondary"
+                className="text-xs"
               >
                 Columns
-              </button>
+              </Button>
             </div>
           </div>
           <textarea
             value={customSql}
             onChange={(e) => setCustomSql(e.target.value)}
-            className="mb-2 h-32 w-full rounded-md border border-gray-300 bg-[#F8F8F8] p-2 font-mono text-sm dark:border-gray-700 dark:bg-[#1A1A1A]"
+            className="mb-2 h-32 w-full rounded-md border border-bolt-elements-border bg-bolt-elements-background-depth-2 p-2 font-mono text-sm text-bolt-elements-textPrimary"
             spellCheck={false}
+            placeholder="Enter SQL query here..."
           />
           <div className="flex justify-end">
-            <button
+            <Button
               onClick={executeCustomQuery}
               disabled={sqlQueryLoading || !customSql.trim()}
-              className="flex items-center rounded-md bg-[#3ECF8E] px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-[#3BBF84] disabled:opacity-50"
+              size="sm"
+              className="bg-bolt-elements-button-primary-background text-bolt-elements-button-primary-text hover:bg-bolt-elements-button-primary-backgroundHover transition-colors"
             >
               {sqlQueryLoading ? (
-                <span className="mr-1.5 inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+                <span className="mr-1.5 inline-block h-3 w-3 animate-spin rounded-full border-2 border-bolt-elements-button-primary-text border-t-transparent"></span>
               ) : (
                 <span className="mr-1.5 i-ph:play"></span>
               )}
               Execute
-            </button>
+            </Button>
           </div>
 
           {/* SQL Query Results */}
           {sqlQueryResults && (
             <div className="mt-3">
               <div className="mb-1 flex items-center justify-between">
-                <h5 className="text-xs font-medium text-gray-700 dark:text-gray-300">Results</h5>
-                <div className="text-xs text-gray-500">
+                <h5 className="text-xs font-medium text-bolt-elements-textPrimary">Results</h5>
+                <div className="text-xs text-bolt-elements-textSecondary">
                   {Array.isArray(sqlQueryResults) ? `${sqlQueryResults.length} rows` : '1 result'}
                 </div>
               </div>
-              <div className="max-h-80 overflow-auto rounded-md border border-gray-200 dark:border-gray-700">
+              <div className="max-h-80 overflow-auto rounded-md border border-bolt-elements-border bg-bolt-elements-background-depth-2">
                 {Array.isArray(sqlQueryResults) && sqlQueryResults.length > 0 ? (
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-800">
+                  <table className="min-w-full divide-y divide-bolt-elements-border">
+                    <thead className="bg-bolt-elements-background-depth-3">
                       <tr>
                         {Object.keys(sqlQueryResults[0]).map((key) => (
                           <th
                             key={key}
                             scope="col"
-                            className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
+                            className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-bolt-elements-textSecondary"
                           >
                             {key}
                           </th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
+                    <tbody className="divide-y divide-bolt-elements-border">
                       {sqlQueryResults.map((row, i) => (
-                        <tr key={i}>
+                        <tr key={i} className="hover:bg-bolt-elements-item-backgroundActive transition-colors">
                           {Object.values(row).map((value: any, j) => (
                             <td
                               key={j}
-                              className="whitespace-nowrap px-4 py-2 text-sm text-gray-500 dark:text-gray-400"
+                              className="whitespace-nowrap px-4 py-2 text-sm text-bolt-elements-textSecondary"
                             >
                               {value === null ? (
-                                <span className="italic text-gray-400 dark:text-gray-600">null</span>
+                                <span className="italic text-bolt-elements-textTertiary">null</span>
                               ) : typeof value === 'object' ? (
                                 JSON.stringify(value)
                               ) : (
@@ -921,18 +948,12 @@ LIMIT 50;`.trim(),
                     </tbody>
                   </table>
                 ) : sqlQueryError ? (
-                  <div className="p-4 text-sm text-red-600 dark:text-red-400">
+                  <div className="p-4 text-sm text-bolt-elements-errorText">
                     <div className="font-medium">Error:</div>
                     <div className="mt-1">{sqlQueryError}</div>
                   </div>
                 ) : (
-                  <div className="p-4 text-sm text-gray-500">
-                    {sqlQueryResults === null
-                      ? 'Execute a query to see results'
-                      : typeof sqlQueryResults === 'object'
-                        ? JSON.stringify(sqlQueryResults, null, 2)
-                        : String(sqlQueryResults)}
-                  </div>
+                  <div className="p-4 text-sm text-bolt-elements-textSecondary">Execute a query to see results</div>
                 )}
               </div>
             </div>
@@ -942,65 +963,64 @@ LIMIT 50;`.trim(),
 
       {/* Table Detail View */}
       {selectedTable && (
-        <div className="mb-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+        <div className="mb-4 rounded-lg border border-bolt-elements-border bg-bolt-elements-background p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h4 className="text-sm font-medium">
-              Table: <span className="font-semibold text-[#3ECF8E]">{selectedTable.name}</span>
+            <h4 className="text-sm font-medium text-bolt-elements-textPrimary">
+              Table: <span className="font-semibold text-bolt-elements-button-primary-text">{selectedTable.name}</span>
             </h4>
-            <button
-              onClick={() => setSelectedTable(null)}
-              className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-500 dark:hover:bg-gray-800"
-            >
+            <Button onClick={() => setSelectedTable(null)} size="sm" variant="ghost" className="p-1 h-auto">
               <span className="i-ph:x h-4 w-4"></span>
-            </button>
+            </Button>
           </div>
 
           <div className="mb-3">
             <div className="mb-2 flex items-center justify-between">
-              <h5 className="text-xs font-medium text-gray-700 dark:text-gray-300">Structure</h5>
+              <h5 className="text-xs font-medium text-bolt-elements-textSecondary">Structure</h5>
               {tableStructureLoading && (
-                <div className="text-xs text-gray-500">
-                  <span className="mr-1 inline-block h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"></span>
+                <div className="text-xs text-bolt-elements-textTertiary">
+                  <span className="mr-1 inline-block h-3 w-3 animate-spin rounded-full border-2 border-bolt-elements-border border-t-bolt-elements-textSecondary"></span>
                   Loading...
                 </div>
               )}
             </div>
             {tableStructure.length > 0 ? (
-              <div className="max-h-48 overflow-auto rounded-md border border-gray-200 dark:border-gray-700">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-800">
+              <div className="max-h-48 overflow-auto rounded-md border border-bolt-elements-border bg-bolt-elements-background-depth-1">
+                <table className="min-w-full divide-y divide-bolt-elements-border">
+                  <thead className="bg-bolt-elements-background-depth-2">
                     <tr>
                       <th
                         scope="col"
-                        className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
+                        className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-bolt-elements-textSecondary"
                       >
                         Column
                       </th>
                       <th
                         scope="col"
-                        className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
+                        className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-bolt-elements-textSecondary"
                       >
                         Type
                       </th>
                       <th
                         scope="col"
-                        className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
+                        className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-bolt-elements-textSecondary"
                       >
                         Nullable
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
+                  <tbody className="divide-y divide-bolt-elements-border bg-bolt-elements-background-depth-1">
                     {tableStructure.map((column, i) => (
-                      <tr key={i}>
-                        <td className="whitespace-nowrap px-4 py-2 text-sm font-medium text-gray-900 dark:text-white">
+                      <tr key={i} className="hover:bg-bolt-elements-background-depth-2 transition-colors">
+                        <td className="whitespace-nowrap px-4 py-2 text-sm font-medium text-bolt-elements-textPrimary">
                           {column.column_name}
-                          {column.is_primary_key && <span className="ml-1 text-xs text-[#3ECF8E]">🔑</span>}
+                          {column.is_primary_key && (
+                            <span className="ml-1 text-xs text-bolt-elements-button-primary-text">🔑</span>
+                          )}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+                        <td className="whitespace-nowrap px-4 py-2 text-sm text-bolt-elements-textSecondary">
                           {column.data_type}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+                        <td className="whitespace-nowrap px-4 py-2 text-sm text-bolt-elements-textSecondary">
                           {column.is_nullable === 'YES' ? 'Yes' : 'No'}
                         </td>
                       </tr>
@@ -1009,52 +1029,52 @@ LIMIT 50;`.trim(),
                 </table>
               </div>
             ) : tableStructureError ? (
-              <div className="rounded-md bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+              <div className="rounded-md bg-bolt-elements-background-depth-2 p-3 text-sm text-bolt-elements-errorText border border-bolt-elements-errorBorder/30">
                 {tableStructureError}
               </div>
             ) : (
-              <div className="rounded-md bg-gray-50 p-3 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                No structure information available.
+              <div className="rounded-md bg-bolt-elements-background-depth-2 p-3 text-sm text-bolt-elements-errorText border border-bolt-elements-errorBorder/30">
+                {tableStructureError}
               </div>
             )}
           </div>
 
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <h5 className="text-xs font-medium text-gray-700 dark:text-gray-300">Data Preview</h5>
+              <h5 className="text-xs font-medium text-bolt-elements-textSecondary">Data Preview</h5>
               {tableDataLoading && (
-                <div className="text-xs text-gray-500">
-                  <span className="mr-1 inline-block h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"></span>
+                <div className="text-xs text-bolt-elements-textTertiary">
+                  <span className="mr-1 inline-block h-3 w-3 animate-spin rounded-full border-2 border-bolt-elements-border border-t-bolt-elements-textSecondary"></span>
                   Loading...
                 </div>
               )}
             </div>
             {tableData.length > 0 ? (
-              <div className="max-h-64 overflow-auto rounded-md border border-gray-200 dark:border-gray-700">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-800">
+              <div className="max-h-64 overflow-auto rounded-md border border-bolt-elements-border bg-bolt-elements-background-depth-1">
+                <table className="min-w-full divide-y divide-bolt-elements-border">
+                  <thead className="bg-bolt-elements-background-depth-2">
                     <tr>
                       {Object.keys(tableData[0]).map((key) => (
                         <th
                           key={key}
                           scope="col"
-                          className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
+                          className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-bolt-elements-textSecondary"
                         >
                           {key}
                         </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
+                  <tbody className="divide-y divide-bolt-elements-border bg-bolt-elements-background-depth-1">
                     {tableData.map((row, i) => (
-                      <tr key={i}>
+                      <tr key={i} className="hover:bg-bolt-elements-background-depth-2 transition-colors">
                         {Object.entries(row).map(([key, value]) => (
                           <td
                             key={key}
-                            className="whitespace-nowrap px-4 py-2 text-sm text-gray-500 dark:text-gray-400"
+                            className="whitespace-nowrap px-4 py-2 text-sm text-bolt-elements-textSecondary"
                           >
                             {value === null ? (
-                              <span className="italic text-gray-400 dark:text-gray-600">null</span>
+                              <span className="italic text-bolt-elements-textTertiary">null</span>
                             ) : typeof value === 'object' ? (
                               JSON.stringify(value)
                             ) : (
@@ -1068,12 +1088,12 @@ LIMIT 50;`.trim(),
                 </table>
               </div>
             ) : tableDataError ? (
-              <div className="rounded-md bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+              <div className="rounded-md bg-bolt-elements-background-depth-2 p-3 text-sm text-bolt-elements-errorText border border-bolt-elements-errorBorder/30">
                 {tableDataError}
               </div>
             ) : (
-              <div className="rounded-md bg-gray-50 p-3 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                No data available.
+              <div className="rounded-md bg-bolt-elements-background-depth-2 p-3 text-sm text-bolt-elements-errorText border border-bolt-elements-errorBorder/30">
+                {tableDataError}
               </div>
             )}
           </div>
@@ -1081,78 +1101,182 @@ LIMIT 50;`.trim(),
       )}
 
       {isLoading && tables.length === 0 ? (
-        <div className="flex h-32 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="flex h-32 items-center justify-center rounded-lg border border-bolt-elements-border bg-bolt-elements-background">
           <div className="flex flex-col items-center">
-            <div className="mb-2 h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-gray-700 dark:border-t-gray-300"></div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Loading tables...</p>
+            <div className="mb-2 h-5 w-5 animate-spin rounded-full border-2 border-bolt-elements-border border-t-bolt-elements-textSecondary"></div>
+            <p className="text-sm text-bolt-elements-textSecondary">Loading tables...</p>
           </div>
         </div>
       ) : tables.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-800">
-              <tr>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
-                >
-                  Table Name
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
-                >
-                  Schema
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
-                >
-                  Type
-                </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
-                >
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
-              {tables.map((table, i) => (
-                <tr key={i}>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
-                    {table.name}
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    {table.schema}
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{table.type}</td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm">
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => viewTableDetails(table)}
-                        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                      >
-                        View Details
-                      </button>
-                    </div>
-                  </td>
+        <div>
+          {/* Table Search Input */}
+          <div className="mb-4 relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <span className="i-ph:magnifying-glass text-bolt-elements-textTertiary h-4 w-4"></span>
+            </div>
+            <Input
+              type="text"
+              value={tableSearch}
+              onChange={(e) => setTableSearch(e.target.value)}
+              placeholder="Search tables by name or schema..."
+              className="pl-10"
+            />
+            {tableSearch && (
+              <button onClick={() => setTableSearch('')} className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                <span className="i-ph:x text-bolt-elements-textTertiary h-4 w-4 hover:text-bolt-elements-textSecondary"></span>
+              </button>
+            )}
+          </div>
+
+          {/* Results count when filtering */}
+          {tableSearch && (
+            <div className="mb-2 text-xs text-bolt-elements-textSecondary">
+              {filteredTables.length === 0
+                ? 'No tables match your search'
+                : `Found ${filteredTables.length} table${filteredTables.length !== 1 ? 's' : ''}`}
+            </div>
+          )}
+
+          <div className="overflow-hidden rounded-lg border border-bolt-elements-border bg-bolt-elements-background">
+            <table className="min-w-full divide-y divide-bolt-elements-border">
+              <thead className="bg-bolt-elements-background-depth-1">
+                <tr>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-bolt-elements-textSecondary"
+                  >
+                    Table Name
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-bolt-elements-textSecondary"
+                  >
+                    Schema
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-bolt-elements-textSecondary"
+                  >
+                    Type
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-bolt-elements-textSecondary"
+                  >
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-bolt-elements-border">
+                {filteredTables.map((table, i) => (
+                  <tr key={i} className="hover:bg-bolt-elements-background-depth-1 transition-colors">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-bolt-elements-textPrimary">
+                      {table.name}
+                      {table.name === 'test_table' && (
+                        <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-bolt-elements-button-primary-background/20 text-bolt-elements-button-primary-text dark:bg-bolt-elements-button-primary-background/30">
+                          Test
+                        </span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-bolt-elements-textSecondary">
+                      {table.schema}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-bolt-elements-textSecondary">
+                      {table.type}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm">
+                      <div className="flex space-x-2">
+                        <Button
+                          onClick={() => viewTableDetails(table)}
+                          size="sm"
+                          variant="default"
+                          className="flex items-center gap-1 bg-bolt-elements-background-depth-1 border border-bolt-elements-border text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-2 transition-colors dark:border-bolt-elements-border/70"
+                        >
+                          <span className="i-ph:table w-3.5 h-3.5 text-bolt-elements-textSecondary"></span>
+                          View Details
+                        </Button>
+
+                        <Dropdown
+                          trigger={
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="flex items-center gap-1 text-xs border border-bolt-elements-border bg-bolt-elements-background-depth-1 text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-2 transition-colors dark:border-bolt-elements-border/70"
+                            >
+                              <span className="i-ph:dots-three-outline w-3.5 h-3.5 text-bolt-elements-textSecondary"></span>
+                              Actions
+                            </Button>
+                          }
+                        >
+                          <DropdownItem
+                            onSelect={() => {
+                              setCustomSql(`SELECT * FROM ${table.schema}.${table.name} LIMIT 100;`);
+                              setShowSqlEditor(true);
+                              setTimeout(() => {
+                                document.querySelector('.custom-sql-editor')?.scrollIntoView({ behavior: 'smooth' });
+                              }, 100);
+                            }}
+                          >
+                            <span className="i-ph:code w-4 h-4 text-bolt-elements-textSecondary"></span>
+                            <span className="text-bolt-elements-textPrimary">Query Data</span>
+                          </DropdownItem>
+
+                          <DropdownItem
+                            onSelect={() => {
+                              setCustomSql(`
+SELECT 
+  column_name, 
+  data_type,
+  is_nullable,
+  column_default
+FROM 
+  information_schema.columns 
+WHERE 
+  table_schema = '${table.schema}' 
+  AND table_name = '${table.name}'
+ORDER BY 
+  ordinal_position;`);
+                              setShowSqlEditor(true);
+                              setTimeout(() => {
+                                document.querySelector('.custom-sql-editor')?.scrollIntoView({ behavior: 'smooth' });
+                              }, 100);
+                            }}
+                          >
+                            <span className="i-ph:columns w-4 h-4 text-bolt-elements-textSecondary"></span>
+                            <span className="text-bolt-elements-textPrimary">Show Columns</span>
+                          </DropdownItem>
+
+                          <DropdownItem
+                            onSelect={() => {
+                              setCustomSql(`SELECT COUNT(*) FROM ${table.schema}.${table.name};`);
+                              setShowSqlEditor(true);
+                              setTimeout(() => {
+                                document.querySelector('.custom-sql-editor')?.scrollIntoView({ behavior: 'smooth' });
+                              }, 100);
+                            }}
+                          >
+                            <span className="i-ph:hash w-4 h-4 text-bolt-elements-textSecondary"></span>
+                            <span className="text-bolt-elements-textPrimary">Count Rows</span>
+                          </DropdownItem>
+                        </Dropdown>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
-        <div className="flex h-32 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="flex h-32 items-center justify-center rounded-lg border border-bolt-elements-border bg-bolt-elements-background">
           <div className="text-center">
-            <p className="text-sm text-gray-500 dark:text-gray-400">No tables found in this database.</p>
-            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+            <p className="text-sm text-bolt-elements-textSecondary">No tables found in this database.</p>
+            <p className="mt-1 text-xs text-bolt-elements-textTertiary">
               Create a table to get started with your database.
             </p>
 
             <div className="mt-3">
-              <button
+              <Button
                 onClick={() => {
                   const sqlQuery = `
 CREATE TABLE public.test_table (
@@ -1181,10 +1305,11 @@ CREATE POLICY "Allow anonymous access" ON public.test_table FOR SELECT USING (tr
                       toast.error('Failed to copy SQL to clipboard');
                     });
                 }}
-                className="text-xs px-2 py-1 bg-[#3ECF8E] text-white rounded-md"
+                size="sm"
+                className="bg-bolt-elements-button-primary-background text-bolt-elements-button-primary-text hover:bg-bolt-elements-button-primary-backgroundHover transition-colors text-xs"
               >
                 Copy test_table SQL
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -1239,57 +1364,6 @@ export default function SupabaseDashboard() {
   // Handle token input change
   const handleTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     updateSupabaseConnection({ ...connection, token: e.target.value });
-  };
-
-  // Handle connect to Supabase
-  const handleConnect = async () => {
-    if (!connection.token) {
-      toast.error('Please enter your Supabase access token');
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      console.log('[Supabase] Connecting with token:', connection.token.substring(0, 5) + '...');
-
-      const response = await fetch('/api/supabase', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          token: connection.token.trim(),
-        }),
-      });
-
-      console.log('[Supabase] Connection response status:', response.status);
-
-      const data = (await response.json()) as SupabaseConnectionResponse;
-
-      if (!response.ok) {
-        console.error('[Supabase] Connection error:', data.error);
-        throw new Error(data.error || 'Failed to connect');
-      }
-
-      console.log('[Supabase] Connection successful, projects found:', data.stats?.projects?.length || 0);
-
-      updateSupabaseConnection({
-        user: data.user,
-        token: connection.token,
-        stats: data.stats,
-      });
-
-      toast.success('Successfully connected to Supabase');
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to connect to Supabase';
-      console.error('[Supabase] Connection error:', errorMessage);
-      setError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   // Handle disconnect from Supabase
@@ -1521,14 +1595,14 @@ export default function SupabaseDashboard() {
             <>
               <button
                 onClick={handleRefresh}
-                className="px-2 py-1 text-xs text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary flex items-center gap-1"
+                className="px-2 py-1 text-xs bg-bolt-elements-background-depth-1 text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-2 flex items-center gap-1 transition-colors rounded-md border border-bolt-elements-border"
               >
                 <div className="i-ph:arrow-clockwise w-4 h-4" />
                 Refresh
               </button>
               <button
                 onClick={openSupabaseDashboard}
-                className="px-2 py-1 text-xs text-[#3ECF8E] hover:text-[#3BBF84] flex items-center gap-1"
+                className="px-2 py-1 text-xs bg-bolt-elements-background-depth-1 text-bolt-elements-button-primary-text hover:bg-bolt-elements-background-depth-2 flex items-center gap-1 transition-colors rounded-md border border-bolt-elements-border"
               >
                 <div className="i-ph:arrow-square-out w-4 h-4" />
                 Open Dashboard
@@ -1540,7 +1614,7 @@ export default function SupabaseDashboard() {
 
       {/* Connection Status */}
       <motion.div
-        className="bg-white dark:bg-[#0A0A0A] rounded-lg border border-[#E5E5E5] dark:border-[#1A1A1A] p-6"
+        className="bg-bolt-elements-background rounded-lg border border-bolt-elements-border p-6"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
@@ -1549,7 +1623,7 @@ export default function SupabaseDashboard() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-medium text-bolt-elements-textPrimary">Connect to Supabase</h3>
-              <div className="px-2 py-1 text-xs text-bolt-elements-textSecondary bg-[#F0F0F0] dark:bg-[#1A1A1A] rounded-md">
+              <div className="px-2 py-1 text-xs text-bolt-elements-textSecondary bg-bolt-elements-background-depth-1 border border-bolt-elements-border rounded-md">
                 Not Connected
               </div>
             </div>
@@ -1563,20 +1637,20 @@ export default function SupabaseDashboard() {
                 placeholder="Enter your Supabase access token"
                 className={classNames(
                   'w-full px-3 py-2 rounded-lg text-sm',
-                  'bg-[#F8F8F8] dark:bg-[#1A1A1A]',
-                  'border border-[#E5E5E5] dark:border-[#333333]',
+                  'bg-bolt-elements-background-depth-1 dark:bg-bolt-elements-background-depth-2',
+                  'border border-bolt-elements-border',
                   'text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary',
-                  'focus:outline-none focus:ring-1 focus:ring-[#3ECF8E]',
+                  'focus:outline-none focus:ring-1 focus:ring-bolt-elements-button-primary-text',
                   error ? 'border-red-400 dark:border-red-600' : '',
                 )}
               />
-              {error && <div className="mt-2 text-sm text-red-500">{error}</div>}
+              {error && <div className="mt-2 text-sm text-bolt-elements-errorText">{error}</div>}
               <div className="mt-2 text-sm text-bolt-elements-textSecondary">
                 <a
                   href="https://app.supabase.com/account/tokens"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[#3ECF8E] hover:underline inline-flex items-center gap-1"
+                  className="text-bolt-elements-button-primary-text hover:underline inline-flex items-center gap-1"
                 >
                   Get your token
                   <div className="i-ph:arrow-square-out w-4 h-4" />
@@ -1584,37 +1658,30 @@ export default function SupabaseDashboard() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 justify-end">
-              <button
-                onClick={handleConnect}
-                disabled={!connection.token || isLoading}
-                className={classNames(
-                  'px-4 py-2 rounded-lg text-sm flex items-center gap-2',
-                  'bg-[#3ECF8E] text-white',
-                  'hover:bg-[#3BBF84]',
-                  'disabled:opacity-50 disabled:cursor-not-allowed',
-                )}
-              >
-                {isLoading ? (
-                  <>
-                    <div className="i-ph:circle-notch w-4 h-4 animate-spin" />
-                    Connecting...
-                  </>
-                ) : (
-                  <>
-                    <div className="i-ph:plug-charging w-4 h-4" />
-                    Connect
-                  </>
-                )}
-              </button>
+            <div className="flex items-center gap-3 justify-end">
+              <div className="w-8 h-8 rounded-full bg-bolt-elements-button-primary-background flex items-center justify-center">
+                <div className="text-bolt-elements-button-primary-text font-medium">
+                  {connection.user?.email?.charAt(0)?.toUpperCase() || 'U'}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-bolt-elements-textPrimary">{connection.user?.email || 'User'}</p>
+                <p className="text-xs text-bolt-elements-textSecondary">Role: {connection.user?.role || 'User'}</p>
+              </div>
             </div>
+
+            {lastRefresh && (
+              <div className="text-xs text-bolt-elements-textTertiary">
+                Last refreshed: {lastRefresh.toLocaleTimeString()}
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-medium text-bolt-elements-textPrimary">Connection Status</h3>
-                <div className="px-2 py-1 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-md flex items-center gap-1">
+                <div className="px-2 py-1 text-xs text-bolt-elements-button-success-text bg-bolt-elements-button-success-background/20 dark:bg-bolt-elements-button-success-background/30 rounded-md flex items-center gap-1">
                   <div className="i-ph:check-circle w-3 h-3" />
                   Connected
                 </div>
@@ -1624,8 +1691,8 @@ export default function SupabaseDashboard() {
                 onClick={handleDisconnect}
                 className={classNames(
                   'px-3 py-1 rounded-lg text-xs flex items-center gap-2',
-                  'text-red-500 border border-red-200 dark:border-red-900/30',
-                  'hover:bg-red-50 dark:hover:bg-red-900/20',
+                  'text-bolt-elements-button-danger-text border border-bolt-elements-button-danger-text/30 bg-bolt-elements-background-depth-1',
+                  'hover:bg-bolt-elements-button-danger-background/10 dark:hover:bg-bolt-elements-button-danger-background/20 transition-colors',
                 )}
               >
                 <div className="i-ph:plug-x w-3 h-3" />
@@ -1634,8 +1701,10 @@ export default function SupabaseDashboard() {
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-[#3ECF8E] flex items-center justify-center">
-                <div className="text-white font-medium">{connection.user?.email?.charAt(0)?.toUpperCase() || 'U'}</div>
+              <div className="w-8 h-8 rounded-full bg-bolt-elements-button-primary-background flex items-center justify-center">
+                <div className="text-bolt-elements-button-primary-text font-medium">
+                  {connection.user?.email?.charAt(0)?.toUpperCase() || 'U'}
+                </div>
               </div>
               <div>
                 <p className="text-sm font-medium text-bolt-elements-textPrimary">{connection.user?.email || 'User'}</p>
@@ -1655,7 +1724,7 @@ export default function SupabaseDashboard() {
       {/* Project Selection */}
       {connection.isConnected && (
         <motion.div
-          className="bg-white dark:bg-[#0A0A0A] rounded-lg border border-[#E5E5E5] dark:border-[#1A1A1A] p-6"
+          className="bg-bolt-elements-background rounded-lg border border-bolt-elements-border p-6"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
@@ -1671,7 +1740,7 @@ export default function SupabaseDashboard() {
               )}
               <button
                 onClick={handleCreateProject}
-                className="px-3 py-1 rounded-lg text-xs flex items-center gap-1 bg-[#3ECF8E] text-white hover:bg-[#3BBF84]"
+                className="px-3 py-1 rounded-lg text-xs flex items-center gap-1 bg-bolt-elements-button-primary-background text-bolt-elements-button-primary-text hover:bg-bolt-elements-button-primary-backgroundHover transition-colors"
               >
                 <div className="i-ph:plus w-3 h-3" />
                 New Project
@@ -1702,7 +1771,7 @@ export default function SupabaseDashboard() {
       {/* Stats Dashboard - Only show if connected and a project is selected */}
       {connection.isConnected && connection.selectedProjectId && (
         <motion.div
-          className="bg-white dark:bg-[#0A0A0A] rounded-lg border border-[#E5E5E5] dark:border-[#1A1A1A] p-6"
+          className="bg-bolt-elements-background rounded-lg border border-bolt-elements-border p-6"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
@@ -1712,26 +1781,50 @@ export default function SupabaseDashboard() {
             <div className="flex items-center gap-2">
               <button
                 onClick={checkTables}
-                className="px-2 py-1 text-xs flex items-center gap-1 bg-blue-500 text-white rounded-md"
+                className="px-2 py-1 text-xs flex items-center gap-1 bg-bolt-elements-button-primary-background text-bolt-elements-button-primary-text hover:bg-bolt-elements-button-primary-backgroundHover rounded-md transition-colors"
               >
                 <span className="i-ph:arrow-clockwise"></span>
                 List All Tables
               </button>
-              <div className="px-2 py-1 text-xs text-[#3ECF8E] bg-[#3ECF8E]/5 dark:bg-[#3ECF8E]/10 rounded-md">
+              <div className="px-2 py-1 text-xs text-bolt-elements-button-primary-text bg-bolt-elements-button-primary-background/20 dark:bg-bolt-elements-button-primary-background/30 border border-bolt-elements-button-primary-text/20 rounded-md flex items-center gap-1">
                 {connection.project?.name || 'Current Project'}
               </div>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 mb-6">
-            <StatsCard title="Tables" value={databaseStats.tables} icon="i-ph:table" color="bg-purple-500" />
-            <StatsCard title="Rows" value={databaseStats.rows} icon="i-ph:rows" color="bg-blue-500" />
-            <StatsCard title="Storage" value={databaseStats.storage} icon="i-ph:hard-drive" color="bg-amber-500" />
-            <StatsCard title="Auth Users" value={databaseStats.users} icon="i-ph:users" color="bg-emerald-500" />
+            <StatsCard
+              title="Tables"
+              value={databaseStats.tables}
+              icon="i-ph:table"
+              color="bg-purple-500"
+              isLoading={isLoading && databaseStats.tables === '–'}
+            />
+            <StatsCard
+              title="Rows"
+              value={databaseStats.rows}
+              icon="i-ph:rows"
+              color="bg-blue-500"
+              isLoading={isLoading && databaseStats.rows === '–'}
+            />
+            <StatsCard
+              title="Storage"
+              value={databaseStats.storage}
+              icon="i-ph:hard-drive"
+              color="bg-amber-500"
+              isLoading={isLoading && databaseStats.storage === '–'}
+            />
+            <StatsCard
+              title="Auth Users"
+              value={databaseStats.users}
+              icon="i-ph:users"
+              color="bg-emerald-500"
+              isLoading={isLoading && databaseStats.users === '–'}
+            />
           </div>
 
           {/* Database Tables */}
-          <div className="space-y-4 border-t border-[#E5E5E5] dark:border-[#1A1A1A] pt-4 mt-2">
+          <div className="space-y-4 border-t border-bolt-elements-border pt-4 mt-2">
             <DatabaseTable
               key={dbKey}
               selectedProject={{
@@ -1749,7 +1842,7 @@ export default function SupabaseDashboard() {
               <h4 className="text-sm font-medium text-bolt-elements-textPrimary">Recent Operations</h4>
               <button
                 onClick={() => setIsQueryHistoryExpanded(!isQueryHistoryExpanded)}
-                className="text-xs text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary flex items-center gap-1"
+                className="text-xs border border-bolt-elements-border px-2 py-1 rounded-md bg-bolt-elements-background-depth-1 text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-2 hover:text-bolt-elements-textPrimary flex items-center gap-1 transition-colors"
               >
                 {isQueryHistoryExpanded ? 'Collapse' : 'Expand'}
                 <div
@@ -1762,7 +1855,7 @@ export default function SupabaseDashboard() {
             </div>
 
             {isQueryHistoryExpanded && (
-              <div className="border border-[#E5E5E5] dark:border-[#1A1A1A] rounded-lg p-3 bg-[#F8F8F8] dark:bg-[#0D0D0D]">
+              <div className="border border-bolt-elements-border rounded-lg p-3 bg-bolt-elements-background">
                 <div className="text-xs text-bolt-elements-textSecondary text-center py-2">
                   No recent operations found
                 </div>
