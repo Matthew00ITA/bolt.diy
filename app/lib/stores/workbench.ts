@@ -254,7 +254,7 @@ export class WorkbenchStore {
     this.#reloadedMessages = new Set(messages);
   }
 
-  addArtifact({ messageId, title, id, type }: ArtifactCallbackData) {
+  addArtifact({ messageId, title, id, type }: ArtifactCallbackData, supabaseConnection: any) {
     const artifact = this.#getArtifact(messageId);
 
     if (artifact) {
@@ -280,6 +280,7 @@ export class WorkbenchStore {
 
           this.actionAlert.set(alert);
         },
+        supabaseConnection,
       ),
     });
   }

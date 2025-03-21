@@ -25,6 +25,7 @@ const TAB_ICONS: Record<TabType, string> = {
   'event-logs': 'i-ph:list-bullets-fill',
   update: 'i-ph:arrow-clockwise-fill',
   'task-manager': 'i-ph:chart-line-fill',
+  supabase: 'i-ph:database-fill',
   'tab-management': 'i-ph:squares-four-fill',
 };
 
@@ -37,6 +38,7 @@ const DEFAULT_USER_TABS: TabType[] = [
   'connection',
   'notifications',
   'event-logs',
+  'supabase',
 ];
 
 // Define which tabs can be added to user mode

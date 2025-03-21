@@ -4,10 +4,11 @@ import React, { Suspense } from 'react';
 // Use React.lazy for dynamic imports
 const GithubConnection = React.lazy(() => import('./GithubConnection'));
 const NetlifyConnection = React.lazy(() => import('./NetlifyConnection'));
+const SupabaseConnection = React.lazy(() => import('./SupabaseConnection'));
 
 // Loading fallback component
 const LoadingFallback = () => (
-  <div className="p-4 bg-white dark:bg-[#0A0A0A] rounded-lg border border-[#E5E5E5] dark:border-[#1A1A1A]">
+  <div className="p-4 bg-bolt-elements-background rounded-lg border border-bolt-elements-border">
     <div className="flex items-center gap-2 text-bolt-elements-textSecondary">
       <div className="i-ph:spinner-gap w-5 h-5 animate-spin" />
       <span>Loading connection...</span>
@@ -38,6 +39,9 @@ export default function ConnectionsTab() {
         </Suspense>
         <Suspense fallback={<LoadingFallback />}>
           <NetlifyConnection />
+        </Suspense>
+        <Suspense fallback={<LoadingFallback />}>
+          <SupabaseConnection />
         </Suspense>
       </div>
     </div>

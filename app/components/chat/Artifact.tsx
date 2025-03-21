@@ -10,7 +10,7 @@ import { cubicEasingFn } from '~/utils/easings';
 import { WORK_DIR } from '~/utils/constants';
 
 const highlighterOptions = {
-  langs: ['shell'],
+  langs: ['shell', 'sql'], // Add SQL support
   themes: ['light-plus', 'dark-plus'],
 };
 
@@ -161,6 +161,7 @@ function openArtifactInWorkbench(filePath: any) {
 }
 
 const ActionList = memo(({ actions }: ActionListProps) => {
+  const [expandedQueries, setExpandedQueries] = useState<Record<number, boolean>>({});
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
       <ul className="list-none space-y-2.5">
@@ -221,16 +222,55 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                   >
                     <span className="flex-1">Start Application</span>
                   </a>
+                ) : type === 'supabase' ? (
+                  <div className="flex items-center w-full min-h-[28px]">
+                    <span className="flex w-full justify-between items-center">
+                      {action.operation === 'migration' ? 'Create Migration' : 'Execute Query'}
+                      {action.operation === 'migration' && action.filePath && (
+                        <>
+                          {' '}
+                          <code
+                            className="bg-bolt-elements-artifacts-inlineCode-background text-bolt-elements-artifacts-inlineCode-text px-1.5 py-1 rounded-md text-bolt-elements-item-contentAccent hover:underline cursor-pointer"
+                            onClick={() => openArtifactInWorkbench(action.filePath)}
+                          >
+                            {action.filePath}
+                          </code>
+                        </>
+                      )}
+                      {type === 'supabase' && action.operation === 'query' && (
+                        <button
+                          onClick={() => setExpandedQueries((prev) => ({ ...prev, [index]: !prev[index] }))}
+                          className="rounded-full bg-bolt-elements-artifacts-inlineCode-background p-0.5 text-purple-500 text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary self-end mt-1"
+                        >
+                          <div className={expandedQueries[index] ? 'i-ph:caret-up-bold' : 'i-ph:caret-down-bold'}></div>
+                        </button>
+                      )}
+                    </span>
+                  </div>
                 ) : null}
               </div>
-              {(type === 'shell' || type === 'start') && (
+              {type === 'shell' || type === 'start' ? (
                 <ShellCodeBlock
                   classsName={classNames('mt-1', {
                     'mb-3.5': !isLast,
                   })}
                   code={content}
                 />
-              )}
+              ) : type === 'supabase' && action.operation === 'query' ? (
+                <div className="flex flex-col">
+                  {expandedQueries[index] && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="mt-2"
+                    >
+                      <SqlCodeBlock code={content} />
+                    </motion.div>
+                  )}
+                </div>
+              ) : null}
             </motion.li>
           );
         })}
@@ -260,4 +300,18 @@ function getIconColor(status: ActionState['status']) {
       return undefined;
     }
   }
+}
+
+function SqlCodeBlock({ className, code }: { className?: string; code: string }) {
+  return (
+    <div
+      className={classNames('text-xs', className)}
+      dangerouslySetInnerHTML={{
+        __html: shellHighlighter.codeToHtml(code, {
+          lang: 'sql',
+          theme: 'dark-plus',
+        }),
+      }}
+    ></div>
+  );
 }

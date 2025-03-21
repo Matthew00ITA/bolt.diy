@@ -12,6 +12,7 @@ import { useMessageParser, usePromptEnhancer, useShortcuts, useSnapScroll } from
 import { description, useChatHistory } from '~/lib/persistence';
 import { chatStore } from '~/lib/stores/chat';
 import { workbenchStore } from '~/lib/stores/workbench';
+import { supabaseConnection } from '~/lib/stores/supabase'; // Add this import
 import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST } from '~/utils/constants';
 import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger, renderLogger } from '~/utils/logger';
@@ -123,6 +124,10 @@ export const ChatImpl = memo(
     const [fakeLoading, setFakeLoading] = useState(false);
     const files = useStore(workbenchStore.files);
     const actionAlert = useStore(workbenchStore.alert);
+    const supabaseConn = useStore(supabaseConnection); // Add this line to get Supabase connection
+    const selectedProject = supabaseConn.stats?.projects?.find(
+      (project) => project.id === supabaseConn.selectedProjectId,
+    );
     const { activeProviders, promptId, autoSelectTemplate, contextOptimizationEnabled } = useSettings();
 
     const [model, setModel] = useState(() => {
@@ -160,6 +165,17 @@ export const ChatImpl = memo(
         files,
         promptId,
         contextOptimization: contextOptimizationEnabled,
+
+        // Add Supabase connection info to the API request
+        supabase: supabaseConn.isConnected
+          ? {
+              isConnected: supabaseConn.isConnected,
+              user: supabaseConn.user,
+              token: supabaseConn.token,
+              project: selectedProject,
+              selectedProjectId: supabaseConn.selectedProjectId,
+            }
+          : undefined,
       },
       sendExtraMessageFields: true,
       onError: (e) => {
@@ -215,7 +231,7 @@ export const ChatImpl = memo(
     }, [model, provider, searchParams]);
 
     const { enhancingPrompt, promptEnhanced, enhancePrompt, resetEnhancer } = usePromptEnhancer();
-    const { parsedMessages, parseMessages } = useMessageParser();
+    const { parsedMessages, parseMessages } = useMessageParser(supabaseConn); // Pass supabaseConn here
 
     const TEXTAREA_MAX_HEIGHT = chatStarted ? 400 : 200;
 

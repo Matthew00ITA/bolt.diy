@@ -38,6 +38,7 @@ import CloudProvidersTab from '~/components/@settings/tabs/providers/cloud/Cloud
 import ServiceStatusTab from '~/components/@settings/tabs/providers/status/ServiceStatusTab';
 import LocalProvidersTab from '~/components/@settings/tabs/providers/local/LocalProvidersTab';
 import TaskManagerTab from '~/components/@settings/tabs/task-manager/TaskManagerTab';
+import SupabaseDashboard from '~/components/@settings/tabs/supabase/SupabaseDashboard';
 
 interface ControlPanelProps {
   open: boolean;
@@ -81,6 +82,7 @@ const TAB_DESCRIPTIONS: Record<TabType, string> = {
   update: 'Check for updates and release notes',
   'task-manager': 'Monitor system resources and processes',
   'tab-management': 'Configure visible tabs and their order',
+  supabase: 'Manage your Supabase database',
 };
 
 // Beta status for experimental features
@@ -335,6 +337,8 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
         return <TaskManagerTab />;
       case 'service-status':
         return <ServiceStatusTab />;
+      case 'supabase':
+        return <SupabaseDashboard />;
       default:
         return null;
     }

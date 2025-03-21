@@ -14,6 +14,7 @@ export const TAB_ICONS: Record<TabType, string> = {
   'event-logs': 'i-ph:list-bullets-fill',
   update: 'i-ph:arrow-clockwise-fill',
   'task-manager': 'i-ph:chart-line-fill',
+  supabase: 'i-ph:database-fill',
   'tab-management': 'i-ph:squares-four-fill',
 };
 
@@ -31,6 +32,7 @@ export const TAB_LABELS: Record<TabType, string> = {
   'event-logs': 'Event Logs',
   update: 'Updates',
   'task-manager': 'Task Manager',
+  supabase: 'Supabase',
   'tab-management': 'Tab Management',
 };
 
@@ -48,6 +50,7 @@ export const TAB_DESCRIPTIONS: Record<TabType, string> = {
   'event-logs': 'View system events and logs',
   update: 'Check for updates and release notes',
   'task-manager': 'Monitor system resources and processes',
+  supabase: 'Manage your Supabase connection and database',
   'tab-management': 'Configure visible tabs and their order',
 };
 
@@ -60,16 +63,17 @@ export const DEFAULT_TAB_CONFIG = [
   { id: 'connection', visible: true, window: 'user' as const, order: 4 },
   { id: 'notifications', visible: true, window: 'user' as const, order: 5 },
   { id: 'event-logs', visible: true, window: 'user' as const, order: 6 },
+  { id: 'supabase', visible: true, window: 'user' as const, order: 7 },
 
   // User Window Tabs (In dropdown, initially hidden)
-  { id: 'profile', visible: false, window: 'user' as const, order: 7 },
-  { id: 'settings', visible: false, window: 'user' as const, order: 8 },
-  { id: 'task-manager', visible: false, window: 'user' as const, order: 9 },
-  { id: 'service-status', visible: false, window: 'user' as const, order: 10 },
+  { id: 'profile', visible: false, window: 'user' as const, order: 8 },
+  { id: 'settings', visible: false, window: 'user' as const, order: 9 },
+  { id: 'task-manager', visible: false, window: 'user' as const, order: 10 },
+  { id: 'service-status', visible: false, window: 'user' as const, order: 11 },
 
   // User Window Tabs (Hidden, controlled by TaskManagerTab)
-  { id: 'debug', visible: false, window: 'user' as const, order: 11 },
-  { id: 'update', visible: false, window: 'user' as const, order: 12 },
+  { id: 'debug', visible: false, window: 'user' as const, order: 12 },
+  { id: 'update', visible: false, window: 'user' as const, order: 13 },
 
   // Developer Window Tabs (All visible by default)
   { id: 'features', visible: true, window: 'developer' as const, order: 0 },
@@ -85,4 +89,5 @@ export const DEFAULT_TAB_CONFIG = [
   { id: 'service-status', visible: true, window: 'developer' as const, order: 10 },
   { id: 'debug', visible: true, window: 'developer' as const, order: 11 },
   { id: 'update', visible: true, window: 'developer' as const, order: 12 },
+  { id: 'supabase', visible: true, window: 'developer' as const, order: 13 },
 ];

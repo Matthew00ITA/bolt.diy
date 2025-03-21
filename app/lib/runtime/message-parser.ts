@@ -1,4 +1,4 @@
-import type { ActionType, BoltAction, BoltActionData, FileAction, ShellAction } from '~/types/actions';
+import type { ActionType, BoltAction, BoltActionData, FileAction, ShellAction, SupabaseAction } from '~/types/actions';
 import type { BoltArtifactData } from '~/types/artifact';
 import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
@@ -285,7 +285,6 @@ export class StreamingMessageParser {
 
   #parseActionTag(input: string, actionOpenIndex: number, actionEndIndex: number) {
     const actionTag = input.slice(actionOpenIndex, actionEndIndex + 1);
-
     const actionType = this.#extractAttribute(actionTag, 'type') as ActionType;
 
     const actionAttributes = {
@@ -293,7 +292,27 @@ export class StreamingMessageParser {
       content: '',
     };
 
-    if (actionType === 'file') {
+    if (actionType === 'supabase') {
+      const operation = this.#extractAttribute(actionTag, 'operation');
+
+      if (!operation || !['migration', 'query'].includes(operation)) {
+        logger.warn(`Invalid or missing operation for Supabase action: ${operation}`);
+        throw new Error(`Invalid Supabase operation: ${operation}`);
+      }
+
+      (actionAttributes as SupabaseAction).operation = operation as 'migration' | 'query';
+
+      if (operation === 'migration') {
+        const filePath = this.#extractAttribute(actionTag, 'filePath');
+
+        if (!filePath) {
+          logger.warn('Migration requires a filePath');
+          throw new Error('Migration requires a filePath');
+        }
+
+        (actionAttributes as SupabaseAction).filePath = filePath;
+      }
+    } else if (actionType === 'file') {
       const filePath = this.#extractAttribute(actionTag, 'filePath') as string;
 
       if (!filePath) {
@@ -301,11 +320,11 @@ export class StreamingMessageParser {
       }
 
       (actionAttributes as FileAction).filePath = filePath;
-    } else if (!['shell', 'start'].includes(actionType)) {
+    } else if (!['shell', 'start', 'build'].includes(actionType)) {
       logger.warn(`Unknown action type '${actionType}'`);
     }
 
-    return actionAttributes as FileAction | ShellAction;
+    return actionAttributes as FileAction | ShellAction | SupabaseAction;
   }
 
   #extractAttribute(tag: string, attributeName: string): string | undefined {
