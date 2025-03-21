@@ -78,8 +78,17 @@ export const action: ActionFunction = async ({ request }) => {
     // Sort projects by creation date (newest first)
     uniqueProjects.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
+    // Create a user object with all the required fields
+    const now = new Date().toISOString();
+
     return json({
-      user: { email: 'Connected', role: 'Admin' },
+      user: {
+        id: 'supabase-user',
+        email: 'Connected',
+        role: 'Admin',
+        created_at: now,
+        last_sign_in_at: now,
+      },
       stats: {
         projects: uniqueProjects,
         totalProjects: uniqueProjects.length,

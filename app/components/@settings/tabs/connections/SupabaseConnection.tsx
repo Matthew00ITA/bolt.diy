@@ -12,7 +12,7 @@ import {
   fetchSupabaseStats,
 } from '~/lib/stores/supabase';
 
-export function SupabaseConnection() {
+export default function SupabaseConnection() {
   const connection = useStore(supabaseConnection);
   const connecting = useStore(isConnecting);
   const fetchingStats = useStore(isFetchingStats);
@@ -26,12 +26,17 @@ export function SupabaseConnection() {
     const savedConnection = localStorage.getItem('supabase_connection');
 
     if (savedConnection) {
-      const parsed = JSON.parse(savedConnection);
-      updateSupabaseConnection(parsed);
+      try {
+        const parsed = JSON.parse(savedConnection);
+        updateSupabaseConnection(parsed);
 
-      // Fetch stats if we have a token
-      if (parsed.token) {
-        fetchSupabaseStats(parsed.token).catch(console.error);
+        // Fetch stats if we have a token
+        if (parsed.token) {
+          fetchSupabaseStats(parsed.token).catch(console.error);
+        }
+      } catch (error) {
+        console.error('Error parsing saved Supabase connection:', error);
+        localStorage.removeItem('supabase_connection');
       }
     }
   }, []);
@@ -83,7 +88,7 @@ export function SupabaseConnection() {
 
   return (
     <motion.div
-      className="bg-[#FFFFFF] dark:bg-[#0A0A0A] rounded-lg border border-[#E5E5E5] dark:border-[#1A1A1A]"
+      className="bg-bolt-elements-background rounded-lg border border-bolt-elements-border"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.4 }}
@@ -108,16 +113,16 @@ export function SupabaseConnection() {
               <label className="block text-sm text-bolt-elements-textSecondary mb-2">Access Token</label>
               <input
                 type="password"
-                value={connection.token}
+                value={connection.token || ''}
                 onChange={(e) => updateSupabaseConnection({ ...connection, token: e.target.value })}
                 disabled={connecting}
                 placeholder="Enter your Supabase access token"
                 className={classNames(
                   'w-full px-3 py-2 rounded-lg text-sm',
-                  'bg-[#F8F8F8] dark:bg-[#1A1A1A]',
-                  'border border-[#E5E5E5] dark:border-[#333333]',
+                  'bg-bolt-elements-background-depth-1 dark:bg-bolt-elements-background-depth-2',
+                  'border border-bolt-elements-border',
                   'text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary',
-                  'focus:outline-none focus:ring-1 focus:ring-[#3ECF8E]',
+                  'focus:outline-none focus:ring-1 focus:ring-bolt-elements-button-primary-text',
                   'disabled:opacity-50',
                 )}
               />
@@ -126,7 +131,7 @@ export function SupabaseConnection() {
                   href="https://app.supabase.com/account/tokens"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[#3ECF8E] hover:underline inline-flex items-center gap-1"
+                  className="text-bolt-elements-button-primary-text hover:underline inline-flex items-center gap-1"
                 >
                   Get your token
                   <div className="i-ph:arrow-square-out w-4 h-4" />
@@ -139,8 +144,8 @@ export function SupabaseConnection() {
               disabled={connecting || !connection.token}
               className={classNames(
                 'px-4 py-2 rounded-lg text-sm flex items-center gap-2',
-                'bg-[#3ECF8E] text-white',
-                'hover:bg-[#3BBF84]',
+                'bg-bolt-elements-button-primary-background text-bolt-elements-button-primary-text',
+                'hover:bg-bolt-elements-button-primary-backgroundHover',
                 'disabled:opacity-50 disabled:cursor-not-allowed',
               )}
             >
@@ -165,24 +170,26 @@ export function SupabaseConnection() {
                   onClick={handleDisconnect}
                   className={classNames(
                     'px-4 py-2 rounded-lg text-sm flex items-center gap-2',
-                    'bg-red-500 text-white',
-                    'hover:bg-red-600',
+                    'bg-bolt-elements-button-danger-background text-bolt-elements-button-danger-text',
+                    'hover:bg-bolt-elements-button-danger-backgroundHover',
                   )}
                 >
                   <div className="i-ph:plug-x w-4 h-4" />
                   Disconnect
                 </button>
                 <span className="text-sm text-bolt-elements-textSecondary flex items-center gap-1">
-                  <div className="i-ph:check-circle w-4 h-4 text-green-500" />
+                  <div className="i-ph:check-circle w-4 h-4 text-bolt-elements-button-success-text" />
                   Connected to Supabase
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-4 p-4 bg-[#F8F8F8] dark:bg-[#1A1A1A] rounded-lg">
+            <div className="flex items-center gap-4 p-4 bg-bolt-elements-background-depth-1 dark:bg-bolt-elements-background-depth-2 rounded-lg">
               <div>
-                <h4 className="text-sm font-medium text-bolt-elements-textPrimary">{connection.user.email}</h4>
-                <p className="text-sm text-bolt-elements-textSecondary">Role: {connection.user.role}</p>
+                <h4 className="text-sm font-medium text-bolt-elements-textPrimary">
+                  {connection.user?.email || 'User'}
+                </h4>
+                <p className="text-sm text-bolt-elements-textSecondary">Role: {connection.user?.role || 'User'}</p>
               </div>
             </div>
 
@@ -212,12 +219,12 @@ export function SupabaseConnection() {
                     {connection.stats.projects.map((project) => (
                       <div
                         key={project.id}
-                        className="block p-4 rounded-lg border border-[#E5E5E5] dark:border-[#1A1A1A] hover:border-[#3ECF8E] dark:hover:border-[#3ECF8E] transition-colors"
+                        className="block p-4 rounded-lg border border-bolt-elements-border hover:border-bolt-elements-button-primary-text dark:hover:border-bolt-elements-button-primary-text transition-colors"
                       >
                         <div className="flex items-center justify-between">
                           <div>
                             <h5 className="text-sm font-medium text-bolt-elements-textPrimary flex items-center gap-2">
-                              <div className="i-ph:database w-4 h-4 text-[#3ECF8E]" />
+                              <div className="i-ph:database w-4 h-4 text-bolt-elements-button-primary-text" />
                               {project.name}
                             </h5>
                             <div className="flex items-center gap-2 mt-2 text-xs text-bolt-elements-textSecondary">
@@ -233,7 +240,7 @@ export function SupabaseConnection() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <div className="text-xs text-bolt-elements-textSecondary px-2 py-1 rounded-md bg-[#F0F0F0] dark:bg-[#252525]">
+                            <div className="text-xs text-bolt-elements-textSecondary px-2 py-1 rounded-md bg-bolt-elements-background-depth-1 dark:bg-bolt-elements-background-depth-2">
                               <span className="flex items-center gap-1">
                                 <div className="i-ph:circle-wavy-check w-3 h-3" />
                                 {project.status}
@@ -244,8 +251,8 @@ export function SupabaseConnection() {
                               className={classNames(
                                 'px-3 py-1 rounded-md text-xs',
                                 connection.selectedProjectId === project.id
-                                  ? 'bg-[#3ECF8E] text-white'
-                                  : 'bg-[#F0F0F0] dark:bg-[#252525] text-bolt-elements-textSecondary hover:bg-[#3ECF8E] hover:text-white',
+                                  ? 'bg-bolt-elements-button-primary-background text-bolt-elements-button-primary-text'
+                                  : 'bg-bolt-elements-background-depth-1 dark:bg-bolt-elements-background-depth-2 text-bolt-elements-textSecondary hover:bg-bolt-elements-button-primary-background hover:text-bolt-elements-button-primary-text',
                               )}
                             >
                               {connection.selectedProjectId === project.id ? (
@@ -262,14 +269,35 @@ export function SupabaseConnection() {
                       </div>
                     ))}
                   </div>
-                ) : isProjectsExpanded ? (
-                  <div className="text-sm text-bolt-elements-textSecondary flex items-center gap-2">
-                    <div className="i-ph:info w-4 h-4" />
-                    No projects found in your Supabase account
-                  </div>
-                ) : null}
+                ) : (
+                  connection.stats?.totalProjects === 0 && (
+                    <div className="text-center p-4 border border-bolt-elements-border rounded-lg bg-bolt-elements-background-depth-1 dark:bg-bolt-elements-background-depth-2">
+                      <p className="text-sm text-bolt-elements-textSecondary mb-2">No projects found</p>
+                      <a
+                        href="https://app.supabase.com/new/new-project"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-bolt-elements-button-primary-text hover:underline inline-flex items-center gap-1"
+                      >
+                        Create a new project
+                        <div className="i-ph:arrow-square-out w-3 h-3" />
+                      </a>
+                    </div>
+                  )
+                )}
               </div>
             )}
+
+            <div className="text-xs text-bolt-elements-textTertiary mt-4">
+              <div className="flex items-center gap-2">
+                <div className="i-ph:info w-3 h-3" />
+                <span>
+                  Select a project to access the{' '}
+                  <span className="text-bolt-elements-button-primary-text font-medium">Supabase Dashboard</span> in
+                  settings.
+                </span>
+              </div>
+            </div>
           </div>
         )}
       </div>
