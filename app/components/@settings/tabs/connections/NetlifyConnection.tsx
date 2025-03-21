@@ -721,18 +721,17 @@ export default function NetlifyConnection() {
             </Button>
           </>
         ) : (
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-4">
-              <div className="flex flex-col">
-                <div className="flex items-center gap-2">
-                  <div className="text-[#00AD9F]">
-                    <NetlifyLogo />
-                  </div>
-                  <h2 className="text-lg font-medium text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
-                    Netlify Connection
-                  </h2>
-                </div>
+          <div className="flex flex-col w-full gap-4">
+            <div className="flex items-center gap-2">
+              <div className="text-[#00AD9F]">
+                <NetlifyLogo />
               </div>
+              <h2 className="text-lg font-medium text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
+                Netlify Connection
+              </h2>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
               <Button onClick={handleDisconnect} variant="destructive" size="sm" className="flex items-center gap-2">
                 <svg
                   width="16"
@@ -759,45 +758,46 @@ export default function NetlifyConnection() {
                 </svg>
                 Disconnect
               </Button>
+
               <div className="flex items-center gap-2">
                 <CheckCircleIcon className="h-4 w-4 text-green-500" />
                 <span className="text-sm text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
                   Connected to Netlify
                 </span>
               </div>
-            </div>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => window.open('https://app.netlify.com', '_blank', 'noopener,noreferrer')}
-                className="flex items-center gap-2 hover:bg-bolt-elements-item-backgroundActive/10 hover:text-bolt-elements-textPrimary dark:hover:text-bolt-elements-textPrimary transition-colors"
-              >
-                <div className="i-ph:layout-dashboard w-4 h-4" />
-                Dashboard
-              </Button>
-              <Button
-                onClick={() => fetchNetlifyStats(connection.token)}
-                disabled={fetchingStats}
-                variant="outline"
-                className="flex items-center gap-2 hover:bg-bolt-elements-item-backgroundActive/10 hover:text-bolt-elements-textPrimary dark:hover:text-bolt-elements-textPrimary transition-colors"
-              >
-                {fetchingStats ? (
-                  <>
-                    <div className="i-ph:spinner-gap w-4 h-4 animate-spin text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary" />
-                    <span className="text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
-                      Refreshing...
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <ArrowPathIcon className="h-4 w-4 text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary" />
-                    <span className="text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
-                      Refresh Stats
-                    </span>
-                  </>
-                )}
-              </Button>
+              <div className="flex items-center gap-2 ml-auto">
+                <Button
+                  variant="outline"
+                  onClick={() => window.open('https://app.netlify.com', '_blank', 'noopener,noreferrer')}
+                  className="flex items-center gap-2 hover:bg-bolt-elements-item-backgroundActive/10 hover:text-bolt-elements-textPrimary dark:hover:text-bolt-elements-textPrimary transition-colors"
+                >
+                  <div className="i-ph:layout-dashboard w-4 h-4" />
+                  Dashboard
+                </Button>
+                <Button
+                  onClick={() => fetchNetlifyStats(connection.token)}
+                  disabled={fetchingStats}
+                  variant="outline"
+                  className="flex items-center gap-2 hover:bg-bolt-elements-item-backgroundActive/10 hover:text-bolt-elements-textPrimary dark:hover:text-bolt-elements-textPrimary transition-colors"
+                >
+                  {fetchingStats ? (
+                    <>
+                      <div className="i-ph:spinner-gap w-4 h-4 animate-spin text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary" />
+                      <span className="text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
+                        Refreshing...
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowPathIcon className="h-4 w-4 text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary" />
+                      <span className="text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
+                        Refresh Stats
+                      </span>
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         )}
