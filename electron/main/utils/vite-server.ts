@@ -19,7 +19,7 @@ export async function initViteServer() {
  * take care of vite-dev-server.
  *
  */
-app.on('before-quit', async (_event) => {
+app.on('before-quit', async (_event: Electron.Event) => {
   if (!viteServer) {
     return;
   }

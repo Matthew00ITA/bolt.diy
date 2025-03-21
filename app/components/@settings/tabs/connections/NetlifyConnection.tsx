@@ -6,19 +6,19 @@ import { useStore } from '@nanostores/react';
 import { netlifyConnection, updateNetlifyConnection, initializeNetlifyConnection } from '~/lib/stores/netlify';
 import type { NetlifyStats, NetlifyUser, NetlifySite, NetlifyDeploy, NetlifyBuild } from '~/types/netlify';
 import {
-  CloudIcon,
-  BuildingLibraryIcon,
-  ClockIcon,
-  CodeBracketIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  TrashIcon,
-  ArrowPathIcon,
-  LockClosedIcon,
-  LockOpenIcon,
-  PlusIcon,
-  RocketLaunchIcon,
-} from '@heroicons/react/24/outline';
+  Cloud,
+  Buildings,
+  Clock,
+  Code,
+  CheckCircle,
+  XCircle,
+  Trash,
+  ArrowsClockwise,
+  LockKey,
+  LockKeyOpen,
+  Plus,
+  Rocket,
+} from '@phosphor-icons/react';
 import { Button } from '~/components/ui/Button';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '~/components/ui/Collapsible';
 import { formatDistanceToNow } from 'date-fns';
@@ -62,7 +62,7 @@ export default function NetlifyConnection() {
   const siteActions: SiteAction[] = [
     {
       name: 'Clear Cache',
-      icon: ArrowPathIcon,
+      icon: ArrowsClockwise,
       action: async (siteId: string) => {
         try {
           const response = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}/cache`, {
@@ -85,7 +85,7 @@ export default function NetlifyConnection() {
     },
     {
       name: 'Delete Site',
-      icon: TrashIcon,
+      icon: Trash,
       action: async (siteId: string) => {
         try {
           const response = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}`, {
@@ -375,14 +375,14 @@ export default function NetlifyConnection() {
                   variant="outline"
                   className="flex items-center gap-1 text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary"
                 >
-                  <BuildingLibraryIcon className="h-4 w-4 text-bolt-elements-item-contentAccent" />
+                  <Buildings className="h-4 w-4 text-bolt-elements-item-contentAccent" />
                   <span>{connection.stats.totalSites} Sites</span>
                 </Badge>
                 <Badge
                   variant="outline"
                   className="flex items-center gap-1 text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary"
                 >
-                  <RocketLaunchIcon className="h-4 w-4 text-bolt-elements-item-contentAccent" />
+                  <Rocket className="h-4 w-4 text-bolt-elements-item-contentAccent" />
                   <span>{deploymentCount} Deployments</span>
                 </Badge>
                 {lastUpdated && (
@@ -390,7 +390,7 @@ export default function NetlifyConnection() {
                     variant="outline"
                     className="flex items-center gap-1 text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary"
                   >
-                    <ClockIcon className="h-4 w-4 text-bolt-elements-item-contentAccent" />
+                    <Clock className="h-4 w-4 text-bolt-elements-item-contentAccent" />
                     <span>Updated {formatDistanceToNow(new Date(lastUpdated))} ago</span>
                   </Badge>
                 )}
@@ -400,7 +400,7 @@ export default function NetlifyConnection() {
                   <div className="bg-bolt-elements-background dark:bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor dark:border-bolt-elements-borderColor rounded-lg p-4">
                     <div className="flex items-center justify-between mb-4">
                       <h4 className="text-sm font-medium flex items-center gap-2 text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
-                        <BuildingLibraryIcon className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
+                        <Buildings className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
                         Your Sites
                       </h4>
                       <Button
@@ -410,7 +410,7 @@ export default function NetlifyConnection() {
                         disabled={fetchingStats}
                         className="flex items-center gap-2 text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive/10"
                       >
-                        <ArrowPathIcon
+                        <ArrowsClockwise
                           className={classNames(
                             'h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent',
                             { 'animate-spin': fetchingStats },
@@ -435,7 +435,7 @@ export default function NetlifyConnection() {
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <CloudIcon className="h-5 w-5 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
+                              <Cloud className="h-5 w-5 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
                               <span className="font-medium text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
                                 {site.name}
                               </span>
@@ -446,9 +446,9 @@ export default function NetlifyConnection() {
                                 className="flex items-center gap-1 text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary"
                               >
                                 {site.published_deploy?.state === 'ready' ? (
-                                  <CheckCircleIcon className="h-4 w-4 text-green-500" />
+                                  <CheckCircle className="h-4 w-4 text-green-500" />
                                 ) : (
-                                  <XCircleIcon className="h-4 w-4 text-red-500" />
+                                  <XCircle className="h-4 w-4 text-red-500" />
                                 )}
                                 <span className="text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
                                   {site.published_deploy?.state || 'Unknown'}
@@ -465,7 +465,7 @@ export default function NetlifyConnection() {
                               className="text-sm flex items-center gap-1 transition-colors text-bolt-elements-link-text hover:text-bolt-elements-link-textHover dark:text-white dark:hover:text-bolt-elements-link-textHover"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <CloudIcon className="h-3 w-3 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
+                              <Cloud className="h-3 w-3 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
                               <span className="underline decoration-1 underline-offset-2">
                                 {site.ssl_url || site.url}
                               </span>
@@ -506,14 +506,14 @@ export default function NetlifyConnection() {
                               {site.published_deploy && (
                                 <div className="mt-3 text-sm">
                                   <div className="flex items-center gap-1">
-                                    <ClockIcon className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
+                                    <Clock className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
                                     <span className="text-bolt-elements-textSecondary dark:text-bolt-elements-textSecondary">
                                       Published {formatDistanceToNow(new Date(site.published_deploy.published_at))} ago
                                     </span>
                                   </div>
                                   {site.published_deploy.branch && (
                                     <div className="flex items-center gap-1 mt-1">
-                                      <CodeBracketIcon className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
+                                      <Code className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
                                       <span className="text-bolt-elements-textSecondary dark:text-bolt-elements-textSecondary">
                                         Branch: {site.published_deploy.branch}
                                       </span>
@@ -531,7 +531,7 @@ export default function NetlifyConnection() {
                     <div className="bg-bolt-elements-background dark:bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor dark:border-bolt-elements-borderColor rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="text-sm font-medium flex items-center gap-2 text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
-                          <BuildingLibraryIcon className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
+                          <Buildings className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
                           Recent Deployments
                         </h4>
                       </div>
@@ -554,11 +554,11 @@ export default function NetlifyConnection() {
                                   className="flex items-center gap-1"
                                 >
                                   {deploy.state === 'ready' ? (
-                                    <CheckCircleIcon className="h-4 w-4 text-green-500" />
+                                    <CheckCircle className="h-4 w-4 text-green-500" />
                                   ) : deploy.state === 'error' ? (
-                                    <XCircleIcon className="h-4 w-4 text-red-500" />
+                                    <XCircle className="h-4 w-4 text-red-500" />
                                   ) : (
-                                    <BuildingLibraryIcon className="h-4 w-4 text-bolt-elements-item-contentAccent" />
+                                    <Buildings className="h-4 w-4 text-bolt-elements-item-contentAccent" />
                                   )}
                                   <span className="text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
                                     {deploy.state}
@@ -571,7 +571,7 @@ export default function NetlifyConnection() {
                             </div>
                             {deploy.branch && (
                               <div className="mt-2 text-xs text-bolt-elements-textSecondary dark:text-bolt-elements-textSecondary flex items-center gap-1">
-                                <CodeBracketIcon className="h-3 w-3 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
+                                <Code className="h-3 w-3 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
                                 <span className="text-bolt-elements-textSecondary dark:text-bolt-elements-textSecondary">
                                   Branch: {deploy.branch}
                                 </span>
@@ -586,7 +586,7 @@ export default function NetlifyConnection() {
                                   className="flex items-center gap-1 transition-colors text-bolt-elements-link-text hover:text-bolt-elements-link-textHover dark:text-white dark:hover:text-bolt-elements-link-textHover"
                                   onClick={(e) => e.stopPropagation()}
                                 >
-                                  <CloudIcon className="h-3 w-3 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
+                                  <Cloud className="h-3 w-3 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
                                   <span className="underline decoration-1 underline-offset-2">{deploy.deploy_url}</span>
                                 </a>
                               </div>
@@ -599,7 +599,7 @@ export default function NetlifyConnection() {
                                 disabled={isActionLoading}
                                 className="flex items-center gap-1 text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary"
                               >
-                                <BuildingLibraryIcon className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
+                                <Buildings className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
                                 Publish
                               </Button>
                               {deploy.state === 'ready' ? (
@@ -610,7 +610,7 @@ export default function NetlifyConnection() {
                                   disabled={isActionLoading}
                                   className="flex items-center gap-1 text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary"
                                 >
-                                  <LockClosedIcon className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
+                                  <LockKey className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
                                   Lock
                                 </Button>
                               ) : (
@@ -621,7 +621,7 @@ export default function NetlifyConnection() {
                                   disabled={isActionLoading}
                                   className="flex items-center gap-1 text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary"
                                 >
-                                  <LockOpenIcon className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
+                                  <LockKeyOpen className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
                                   Unlock
                                 </Button>
                               )}
@@ -635,7 +635,7 @@ export default function NetlifyConnection() {
                     <div className="bg-bolt-elements-background dark:bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor dark:border-bolt-elements-borderColor rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="text-sm font-medium flex items-center gap-2 text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
-                          <CodeBracketIcon className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
+                          <Code className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
                           Recent Builds
                         </h4>
                       </div>
@@ -654,11 +654,11 @@ export default function NetlifyConnection() {
                                   className="flex items-center gap-1"
                                 >
                                   {build.done && !build.error ? (
-                                    <CheckCircleIcon className="h-4 w-4" />
+                                    <CheckCircle className="h-4 w-4" />
                                   ) : build.error ? (
-                                    <XCircleIcon className="h-4 w-4" />
+                                    <XCircle className="h-4 w-4" />
                                   ) : (
-                                    <CodeBracketIcon className="h-4 w-4" />
+                                    <Code className="h-4 w-4" />
                                   )}
                                   <span className="text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
                                     {build.done ? (build.error ? 'Failed' : 'Completed') : 'In Progress'}
@@ -671,7 +671,7 @@ export default function NetlifyConnection() {
                             </div>
                             {build.error && (
                               <div className="mt-2 text-xs text-bolt-elements-textDestructive dark:text-bolt-elements-textDestructive flex items-center gap-1">
-                                <XCircleIcon className="h-3 w-3 text-bolt-elements-textDestructive dark:text-bolt-elements-textDestructive" />
+                                <XCircle className="h-3 w-3 text-bolt-elements-textDestructive dark:text-bolt-elements-textDestructive" />
                                 Error: {build.error}
                               </div>
                             )}
@@ -760,7 +760,7 @@ export default function NetlifyConnection() {
               </Button>
 
               <div className="flex items-center gap-2">
-                <CheckCircleIcon className="h-4 w-4 text-green-500" />
+                <CheckCircle className="h-4 w-4 text-green-500" />
                 <span className="text-sm text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
                   Connected to Netlify
                 </span>
@@ -790,7 +790,7 @@ export default function NetlifyConnection() {
                     </>
                   ) : (
                     <>
-                      <ArrowPathIcon className="h-4 w-4 text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary" />
+                      <ArrowsClockwise className="h-4 w-4 text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary" />
                       <span className="text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
                         Refresh Stats
                       </span>
@@ -843,7 +843,7 @@ export default function NetlifyConnection() {
         <div className="mt-4 space-y-4">
           <div className="space-y-2">
             <h4 className="text-sm font-medium flex items-center gap-2 text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
-              <PlusIcon className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
+              <Plus className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
               Create Build Hook
             </h4>
             <div className="flex items-center gap-2">
@@ -872,7 +872,7 @@ export default function NetlifyConnection() {
                 disabled={isActionLoading}
                 className="flex items-center gap-1 text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary"
               >
-                <PlusIcon className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
+                <Plus className="h-4 w-4 text-bolt-elements-item-contentAccent dark:text-bolt-elements-item-contentAccent" />
                 Create Hook
               </Button>
             </div>

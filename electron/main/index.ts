@@ -77,7 +77,7 @@ declare global {
 
   const serverBuild = await loadServerBuild();
 
-  protocol.handle('http', async (req) => {
+  protocol.handle('http', async (req: Request) => {
     console.log('Handling request for:', req.url);
 
     if (isDev) {
@@ -185,7 +185,9 @@ declare global {
     // IPC samples : send and recieve.
     let count = 0;
     setInterval(() => win.webContents.send('ping', `hello from main! ${count++}`), 60 * 1000);
-    ipcMain.handle('ipcTest', (event, ...args) => console.log('ipc: renderer -> main', { event, ...args }));
+    ipcMain.handle('ipcTest', (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) =>
+      console.log('ipc: renderer -> main', { event, ...args }),
+    );
 
     return win;
   })

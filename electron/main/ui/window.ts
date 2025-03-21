@@ -23,11 +23,11 @@ export function createWindow(rendererURL: string) {
   });
 
   console.log('Window created, loading URL...');
-  win.loadURL(rendererURL).catch((err) => {
+  win.loadURL(rendererURL).catch((err: Error) => {
     console.log('Failed to load URL:', err);
   });
 
-  win.webContents.on('did-fail-load', (_, errorCode, errorDescription) => {
+  win.webContents.on('did-fail-load', (_: Electron.Event, errorCode: number, errorDescription: string) => {
     console.log('Failed to load:', errorCode, errorDescription);
   });
 

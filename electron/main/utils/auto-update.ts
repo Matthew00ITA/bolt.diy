@@ -60,9 +60,12 @@ export async function setupAutoUpdater() {
    * });
    */
 
-  autoUpdater.on('download-progress', (progressObj) => {
-    logger.info('Download progress:', progressObj);
-  });
+  autoUpdater.on(
+    'download-progress',
+    (progressObj: { bytesPerSecond: number; percent: number; transferred: number; total: number }) => {
+      logger.info('Download progress:', progressObj);
+    },
+  );
 
   autoUpdater.on('update-downloaded', async (event: UpdateDownloadedEvent) => {
     logger.info('Update downloaded:', formatUpdateDownloadedEvent(event));
@@ -93,7 +96,7 @@ export async function setupAutoUpdater() {
   // Set up periodic update checks (every 4 hours)
   setInterval(
     () => {
-      autoUpdater.checkForUpdates().catch((err) => {
+      autoUpdater.checkForUpdates().catch((err: Error) => {
         logger.error('Periodic update check failed:', err);
       });
     },

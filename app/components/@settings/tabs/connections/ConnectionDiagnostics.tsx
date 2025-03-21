@@ -4,7 +4,7 @@ import { Button } from '~/components/ui/Button';
 import { Badge } from '~/components/ui/Badge';
 import { classNames } from '~/utils/classNames';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '~/components/ui/Collapsible';
-import { CodeBracketIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
+import { Code, CaretDown } from '@phosphor-icons/react';
 
 /**
  * A diagnostics component to help troubleshoot connection issues
@@ -349,12 +349,12 @@ export default function ConnectionDiagnostics() {
             <CollapsibleTrigger className="w-full">
               <div className="flex items-center justify-between p-4 rounded-lg bg-bolt-elements-background dark:bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor dark:border-bolt-elements-borderColor hover:border-bolt-elements-borderColorActive/70 dark:hover:border-bolt-elements-borderColorActive/70 transition-all duration-200">
                 <div className="flex items-center gap-2">
-                  <CodeBracketIcon className="w-4 h-4 text-blue-500" />
+                  <Code className="w-4 h-4 text-blue-500" />
                   <span className="text-sm font-medium text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary">
                     Diagnostic Details
                   </span>
                 </div>
-                <ChevronDownIcon
+                <CaretDown
                   className={classNames(
                     'w-4 h-4 transform transition-transform duration-200 text-bolt-elements-textSecondary dark:text-bolt-elements-textSecondary',
                     showDetails ? 'rotate-180' : '',
