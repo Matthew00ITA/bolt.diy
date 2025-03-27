@@ -163,3 +163,22 @@ This happened because the build process was generating code that used `await` in
 2. Added a specific fix in `safe-deploy.js` that targets the exact issue with the `init_functionsRoutes` function
 
 The fix correctly modifies the generated JavaScript in the `functions/dist/index.js` file before deployment to ensure all functions that use `await` are properly declared as `async`. 
+
+## Enhanced Clean Process
+
+We've improved the `pnpm clean` process to handle async/await issues more robustly. The `clean.js` script now includes a comprehensive fix that:
+
+1. Scans the compiled `functions/dist/index.js` file for async/await inconsistencies
+2. Uses multiple regex patterns to detect and fix functions that use `await` without being declared as `async`
+3. Specifically targets the problematic `init_functionsRoutes_*` functions that were causing build failures
+4. Applies fixes after the regular function build process to ensure everything works correctly
+
+This enhancement ensures that running `pnpm clean` won't result in async/await errors, making the clean process more reliable.
+
+Additionally, we've made the following improvements to the fix-functions-build.js script:
+
+1. More comprehensive regex patterns for detecting async/await issues
+2. Line-by-line scanning of the generated code to find non-async functions using await
+3. Detailed logging to help diagnose any remaining issues
+
+You can now safely run `pnpm clean` without encountering the previous async/await errors. 
