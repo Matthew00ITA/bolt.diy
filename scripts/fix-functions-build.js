@@ -100,12 +100,115 @@ ${tsContent.replace('import \'./crypto-polyfill.js\';\n\n', '')}`;
   // Continue anyway
 }
 
+// Create a Node.js polyfill module for common Node.js built-ins
+console.log('🔧 Creating Node.js polyfill module...');
+try {
+  const nodePolyfillPath = join(rootDir, 'functions', 'node-polyfills.js');
+  const nodePolyfillContent = `// Polyfills for Node.js built-in modules in Cloudflare Workers
+// Import this file at the top of your entry point
+
+// Crypto is handled in crypto-polyfill.js
+
+// Stream polyfill
+if (typeof globalThis.stream === 'undefined') {
+  globalThis.stream = {
+    Transform: class Transform {
+      constructor() {
+        console.warn('Using stream.Transform polyfill');
+      }
+      _transform() {}
+      _flush() {}
+      pipe() { return this; }
+    }
+  };
+}
+
+// Process polyfill
+if (typeof globalThis.process === 'undefined') {
+  globalThis.process = {
+    env: {},
+    nextTick: (fn) => setTimeout(fn, 0),
+    version: '',
+    versions: { node: '16.0.0' }
+  };
+}
+
+// Events polyfill
+if (typeof globalThis.events === 'undefined') {
+  class EventEmitter {
+    constructor() {
+      this._events = {};
+    }
+    on(event, listener) {
+      if (!this._events[event]) this._events[event] = [];
+      this._events[event].push(listener);
+      return this;
+    }
+    emit(event, ...args) {
+      if (!this._events[event]) return false;
+      this._events[event].forEach(listener => listener(...args));
+      return true;
+    }
+    removeListener(event, listener) {
+      if (!this._events[event]) return this;
+      this._events[event] = this._events[event].filter(l => l !== listener);
+      return this;
+    }
+  }
+  globalThis.events = {
+    EventEmitter
+  };
+}
+
+// Add global Buffer if needed
+if (typeof globalThis.Buffer === 'undefined') {
+  globalThis.Buffer = {
+    from: (data, encoding) => {
+      if (typeof data === 'string') {
+        const encoder = new TextEncoder();
+        return encoder.encode(data);
+      }
+      return new Uint8Array(data);
+    },
+    isBuffer: (obj) => obj instanceof Uint8Array,
+    alloc: (size) => new Uint8Array(size)
+  };
+}
+
+console.log('✅ Node.js polyfills initialized');
+`;
+
+  writeFileSync(nodePolyfillPath, nodePolyfillContent);
+  console.log('✅ Created Node.js polyfill module');
+  
+  // Update the [[path]].ts to import the Node.js polyfills
+  const pathTsFile = join(rootDir, 'functions', '[[path]].ts');
+  if (existsSync(pathTsFile)) {
+    let tsContent = readFileSync(pathTsFile, 'utf-8');
+    
+    // Add Node.js polyfills import if not already present
+    if (!tsContent.includes('import \'./node-polyfills.js\'')) {
+      tsContent = tsContent.replace(
+        'import \'./crypto-polyfill.js\';', 
+        'import \'./crypto-polyfill.js\';\n// Import Node.js polyfills\nimport \'./node-polyfills.js\';'
+      );
+      
+      writeFileSync(pathTsFile, tsContent);
+      console.log('✅ Updated functions TypeScript file with Node.js polyfills import');
+    }
+  }
+} catch (error) {
+  console.error('⚠️ Failed to create Node.js polyfill module:', error);
+  // Continue anyway
+}
+
 // Now rebuild the dist file
 console.log('🔄 Building functions...');
 try {
-  execSync('npx wrangler pages functions build --outdir=./functions/dist --minify=false', {
+  execSync('npx wrangler pages functions build --outdir=./functions/dist --minify=false --compatibility-flags nodejs_compat --compatibility-date 2024-09-23', {
     stdio: 'inherit',
-    cwd: rootDir
+    cwd: rootDir,
+    env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=4096 --no-warnings' } // Suppress Node.js warnings
   });
   console.log('✅ Successfully built functions');
 } catch (error) {
@@ -122,9 +225,9 @@ if (existsSync(functionsDistPath)) {
     try {
       let content = readFileSync(pathJsFile, 'utf-8');
       
-      // Add global crypto check at the beginning of the file
-      if (!content.startsWith('// Ensure crypto polyfill')) {
-        content = `// Ensure crypto polyfill is initialized
+      // Add global polyfills at the beginning of the file
+      if (!content.startsWith('// Ensure polyfills are initialized')) {
+        content = `// Ensure polyfills are initialized
 if (typeof globalThis.crypto === 'undefined') {
   globalThis.crypto = {};
 }
@@ -139,7 +242,22 @@ if (typeof globalThis.crypto.getRandomValues === 'undefined') {
     return array;
   };
 }
-console.log("Crypto polyfill initialized");
+
+// Node.js built-in module polyfills
+if (typeof globalThis.stream === 'undefined') {
+  globalThis.stream = { Transform: class {} };
+}
+if (typeof globalThis.process === 'undefined') {
+  globalThis.process = { env: {}, nextTick: (fn) => setTimeout(fn, 0) };
+}
+if (typeof globalThis.events === 'undefined') {
+  globalThis.events = { EventEmitter: class {} };
+}
+if (typeof globalThis.Buffer === 'undefined') {
+  globalThis.Buffer = { from: () => new Uint8Array(), isBuffer: () => false };
+}
+
+console.log("Polyfills initialized");
 
 ${content}`;
       }

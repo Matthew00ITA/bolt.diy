@@ -23,6 +23,34 @@ The following files have been added or modified:
    - `package.json` - Updated scripts to use the new helper scripts
    - `wrangler.toml` - Added nodejs_compat flag (may have already been present)
 
+## Additional Node.js Built-ins Fixes
+
+In addition to the crypto polyfill, we've added the following fixes to handle Node.js built-ins:
+
+1. **Enhanced Node.js Polyfills**:
+   - Added `functions/node-polyfills.js` with polyfills for:
+     - `stream` module (used by various dependencies)
+     - `events` module and EventEmitter
+     - `process` global
+     - `Buffer` global
+
+2. **Updated Build Configuration**:
+   - Added more memory for Node.js during build (`--max-old-space-size=4096`)
+   - Suppressed warnings (`--no-warnings`)
+   - Updated Vite config to include all necessary Node.js polyfills
+
+3. **More Robust Function Runtime**:
+   - Added comprehensive polyfills in the generated worker code
+   - Ensured all common Node.js APIs have appropriate fallbacks
+
+These additional fixes resolve errors like:
+```
+Could not resolve "crypto"
+Could not resolve "stream"
+```
+
+That appear during the build process when dependencies try to use Node.js built-ins.
+
 ## How the Fixes Work
 
 1. **Crypto Polyfill**: Ensures crypto APIs are always available, preventing the `Cannot read properties of null (reading 'subtle')` error.
@@ -72,4 +100,19 @@ These fixes primarily address environment compatibility issues between Remix, Cl
 2. **Build Path Management**: Ensures build artifacts are properly located and referenced.
 3. **Runtime Polyfills**: Provides fallback implementations for missing crypto functions in the Cloudflare environment.
 
-See the detailed implementation in `FIXES.md` for more information. 
+See the detailed implementation in `FIXES.md` for more information.
+
+## Updated Compatibility Date
+
+We've updated the compatibility date in wrangler.toml and all build scripts to "2024-09-23", which provides better support for Node.js built-ins:
+
+```toml
+#:schema node_modules/wrangler/config-schema.json
+name = "bolt"
+compatibility_flags = ["nodejs_compat"]
+compatibility_date = "2024-09-23"  # Updated from "2024-07-01"
+pages_build_output_dir = "./build/client"
+send_metrics = false
+```
+
+This newer compatibility date allows proper resolution of Node.js built-in modules like 'crypto' and 'stream', which were causing build failures. 

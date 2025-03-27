@@ -27,13 +27,16 @@ try {
     rmSync(functionsDistDir, { recursive: true, force: true });
   }
 
-  // Run the build process
+  // Run the build process with increased memory and no warnings
   console.log('🔨 Building the application...');
-  execSync('pnpm run build', { stdio: 'inherit', cwd: rootDir });
+  execSync('NODE_OPTIONS="--max-old-space-size=4096 --no-warnings" pnpm run build', { 
+    stdio: 'inherit', 
+    cwd: rootDir 
+  });
 
-  // Deploy to Cloudflare
+  // Deploy to Cloudflare with node-compat flag
   console.log('📡 Deploying to Cloudflare Pages...');
-  execSync('wrangler pages deploy ./build/client', { stdio: 'inherit', cwd: rootDir });
+  execSync('wrangler pages deploy ./build/client --compatibility-flags nodejs_compat --compatibility-date 2024-09-23', { stdio: 'inherit', cwd: rootDir });
 
   // Clean up after deployment
   console.log('🧹 Cleaning up build artifacts...');

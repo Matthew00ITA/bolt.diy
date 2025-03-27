@@ -93,8 +93,10 @@ export default defineConfig((config) => {
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
     },
     build: {
-      target: 'esnext',
+      target: ['esnext'],
       rollupOptions: {
+        external: ['node:fs', 'node:path', 'node:crypto', 'node:stream', 'node:os', 'node:util', 
+                   'node:events', 'node:buffer', 'node:url', 'node:zlib'],
         output: {
           format: 'esm',
         },
@@ -102,6 +104,10 @@ export default defineConfig((config) => {
       commonjsOptions: {
         transformMixedEsModules: true,
       },
+      ssr: {
+        target: 'webworker',
+        noExternal: true
+      }
     },
     optimizeDeps: {
       esbuildOptions: {
@@ -117,15 +123,8 @@ export default defineConfig((config) => {
     },
     plugins: [
       nodePolyfills({
-        include: ['buffer', 'process', 'util', 'stream'],
-        globals: {
-          Buffer: true,
-          process: true,
-          global: true,
-        },
+        include: ['crypto', 'stream', 'events', 'buffer', 'process', 'util'],
         protocolImports: true,
-        // Exclude Node.js modules that shouldn't be polyfilled in Cloudflare
-        exclude: ['child_process', 'fs', 'path'],
       }),
       {
         name: 'buffer-polyfill',
