@@ -279,25 +279,77 @@ if (existsSync(functionsDistPath)) {
     try {
       let content = readFileSync(indexFile, 'utf-8');
       
-      // Fix missing async keyword in functions that use await
-      if (content.includes('await') && !content.includes('async')) {
-        // Replace function definitions that contain await but are missing async
+      // More aggressive fixing of async/await issues
+      if (content.includes('await')) {
+        console.log('Found await statements that need fixing...');
+        
+        // Fix the specific pattern from the error log
         content = content.replace(
-          /(\bfunction\s+\w+\s*\([^)]*\)\s*{[^}]*\bawait\b)/g,
-          'async $1'
+          /("\.\.\/node_modules\/.+"\s*,\s*)function\s*\(\)\s*{(\s*\n\s*await)/g,
+          '$1async function() {$2'
         );
         
-        // Fix arrow functions as well
+        // Fix function declarations that use await
         content = content.replace(
-          /(\([^)]*\)\s*=>\s*{[^}]*\bawait\b)/g,
-          'async $1'
+          /function\s+(\w+)\s*\([^)]*\)\s*{([^}]*await)/g,
+          'async function $1([^)]*) {$2'
         );
         
-        // Fix specific case for init functions
+        // Fix anonymous function declarations with await
         content = content.replace(
-          /(["']\.\.[^"']+["']\s*,\s*function\s*\([^)]*\)\s*{[^}]*\bawait\b)/g,
-          '$1'.replace('function', 'async function')
+          /function\s*\([^)]*\)\s*{([^}]*await)/g,
+          'async function([^)]*) {$1'
         );
+        
+        // Fix arrow functions
+        content = content.replace(
+          /(\([^)]*\))\s*=>\s*{([^}]*await)/g,
+          'async $1 => {$2'
+        );
+        
+        // Fix any other cases where await is used within a non-async context
+        // This is a more aggressive approach
+        const awaitLines = content.split('\n').map((line, index) => ({ line, index }))
+          .filter(({ line }) => line.includes('await') && !line.includes('async'));
+        
+        if (awaitLines.length > 0) {
+          console.log(`Found ${awaitLines.length} lines with 'await' but no 'async'`);
+          
+          // For each problematic line, find the function declaration it belongs to
+          for (const { line, index } of awaitLines) {
+            console.log(`Processing line ${index + 1}: ${line.trim()}`);
+            
+            // Look backwards to find the function declaration
+            let startLine = index;
+            while (startLine > 0) {
+              const checkLine = content.split('\n')[startLine];
+              if (checkLine.includes('function') && !checkLine.includes('async')) {
+                // Replace this line with an async version
+                console.log(`Found function declaration at line ${startLine + 1}: ${checkLine.trim()}`);
+                const lines = content.split('\n');
+                lines[startLine] = checkLine.replace('function', 'async function');
+                content = lines.join('\n');
+                break;
+              }
+              if (checkLine.includes('=>') && !checkLine.includes('async')) {
+                // Replace this line with an async version
+                console.log(`Found arrow function at line ${startLine + 1}: ${checkLine.trim()}`);
+                const lines = content.split('\n');
+                // Make sure we don't add async to a pattern that already has it
+                if (!lines[startLine].includes('async')) {
+                  // Handle arrow functions carefully
+                  const arrowMatch = checkLine.match(/(\s*)(\([^)]*\))\s*=>/);
+                  if (arrowMatch) {
+                    lines[startLine] = `${arrowMatch[1]}async ${arrowMatch[2]} =>`;
+                    content = lines.join('\n');
+                    break;
+                  }
+                }
+              }
+              startLine--;
+            }
+          }
+        }
       }
       
       writeFileSync(indexFile, content);

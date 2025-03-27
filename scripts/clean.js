@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, copyFileSync } from 'fs';
+import { existsSync, mkdirSync, copyFileSync, readFileSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
@@ -13,6 +13,51 @@ const wranglerPath = join(rootDir, 'wrangler.toml');
 const tempWranglerPath = join(rootDir, 'temp_wrangler_backup.toml');
 const hasExistingBuild = existsSync(serverBuildPath);
 const hasWrangler = existsSync(wranglerPath);
+
+// Function to fix async/await issues in compiled code
+function fixAsyncAwaitIssues() {
+  console.log('🔧 Checking for async/await issues in compiled files...');
+  
+  const functionsDistDir = join(rootDir, 'functions', 'dist');
+  if (!existsSync(functionsDistDir)) {
+    console.log('⚠️ Functions dist directory not found, skipping fix');
+    return;
+  }
+  
+  const indexFile = join(functionsDistDir, 'index.js');
+  if (!existsSync(indexFile)) {
+    console.log('⚠️ Functions index.js not found, skipping fix');
+    return;
+  }
+  
+  try {
+    let content = readFileSync(indexFile, 'utf-8');
+    
+    // Fix the most common async/await pattern issue with init functions
+    if (content.includes('await init_functionsRoutes_')) {
+      console.log('🔧 Found async/await issue with init_functionsRoutes, fixing...');
+      
+      // Fix any node_modules pattern to ensure it has async before function
+      content = content.replace(
+        /("[^"]+node_modules[^"]+"\s*,\s*)function\s*\(\)\s*{(\s*\n\s*await)/g, 
+        '$1async function() {$2'
+      );
+      
+      // Fix any function with await to ensure it has async
+      content = content.replace(
+        /function\s*\([^)]*\)\s*{(\s*\n\s*await)/g,
+        'async function() {$1'
+      );
+      
+      writeFileSync(indexFile, content);
+      console.log('✅ Fixed async/await issues');
+    } else {
+      console.log('✅ No known async/await issues found');
+    }
+  } catch (error) {
+    console.error('⚠️ Error checking/fixing async/await issues:', error);
+  }
+}
 
 console.log('🧹 Starting clean operation...');
 
@@ -141,4 +186,7 @@ try {
   process.exit(1);
 }
 
+// After running the fix-functions-build script
+console.log('🔧 Checking for async/await issues...');
+fixAsyncAwaitIssues();
 console.log('🎉 Clean operation completed successfully!');
