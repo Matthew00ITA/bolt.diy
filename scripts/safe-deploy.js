@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execSync } from 'child_process';
 import { join } from 'path';
-import { rmSync, existsSync } from 'fs';
+import { rmSync, existsSync, readFileSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
@@ -10,6 +10,50 @@ const __dirname = dirname(__filename);
 const rootDir = join(__dirname, '..');
 
 console.log('🚀 Starting safe deployment process...');
+
+// Helper function to directly fix async/await issues
+function fixAsyncAwaitIssues() {
+  console.log('🔧 Checking for async/await issues in compiled files...');
+  
+  const functionsDistDir = join(rootDir, 'functions', 'dist');
+  if (!existsSync(functionsDistDir)) {
+    console.log('⚠️ Functions dist directory not found, skipping fix');
+    return;
+  }
+  
+  const indexFile = join(functionsDistDir, 'index.js');
+  if (!existsSync(indexFile)) {
+    console.log('⚠️ Functions index.js not found, skipping fix');
+    return;
+  }
+  
+  try {
+    let content = readFileSync(indexFile, 'utf-8');
+    
+    // Look for specific pattern of the error with init_functionsRoutes function
+    if (content.includes('await init_functionsRoutes_')) {
+      console.log('🔧 Found async/await issue, fixing...');
+      
+      // Find the problematic function declaration and make it async
+      const pattern = /function\s*\(\)\s*{\s*\n\s*await\s+init_functionsRoutes_/g;
+      if (pattern.test(content)) {
+        content = content.replace(
+          /function\s*\(\)\s*{\s*\n\s*await\s+init_functionsRoutes_/g,
+          'async function() {\n    await init_functionsRoutes_'
+        );
+        
+        writeFileSync(indexFile, content);
+        console.log('✅ Fixed async/await issue in functions index.js');
+      } else {
+        console.log('⚠️ Could not find exact pattern to fix');
+      }
+    } else {
+      console.log('✅ No async/await issues found');
+    }
+  } catch (error) {
+    console.error('⚠️ Error fixing async/await issues:', error);
+  }
+}
 
 // Make sure we have a clean state
 try {
@@ -33,6 +77,9 @@ try {
     stdio: 'inherit', 
     cwd: rootDir 
   });
+
+  // Fix any async/await issues in the generated code before deploying
+  fixAsyncAwaitIssues();
 
   // Deploy to Cloudflare
   console.log('📡 Deploying to Cloudflare Pages...');

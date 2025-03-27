@@ -270,4 +270,42 @@ ${content}`;
   }
 }
 
+// Fix async/await issues in the dist index file
+if (existsSync(functionsDistPath)) {
+  const indexFile = join(functionsDistPath, 'index.js');
+  
+  if (existsSync(indexFile)) {
+    console.log('🔧 Patching functions index file for async/await issues...');
+    try {
+      let content = readFileSync(indexFile, 'utf-8');
+      
+      // Fix missing async keyword in functions that use await
+      if (content.includes('await') && !content.includes('async')) {
+        // Replace function definitions that contain await but are missing async
+        content = content.replace(
+          /(\bfunction\s+\w+\s*\([^)]*\)\s*{[^}]*\bawait\b)/g,
+          'async $1'
+        );
+        
+        // Fix arrow functions as well
+        content = content.replace(
+          /(\([^)]*\)\s*=>\s*{[^}]*\bawait\b)/g,
+          'async $1'
+        );
+        
+        // Fix specific case for init functions
+        content = content.replace(
+          /(["']\.\.[^"']+["']\s*,\s*function\s*\([^)]*\)\s*{[^}]*\bawait\b)/g,
+          '$1'.replace('function', 'async function')
+        );
+      }
+      
+      writeFileSync(indexFile, content);
+      console.log('✅ Successfully patched functions index file');
+    } catch (error) {
+      console.error('⚠️ Failed to patch functions index file:', error);
+    }
+  }
+}
+
 console.log('🎉 Functions build paths fixed successfully!'); 

@@ -142,4 +142,24 @@ This command will:
 1. Clean any previous build files
 2. Build the application with the correct settings
 3. Deploy to Cloudflare Pages using the settings from wrangler.toml
-4. Clean up build artifacts afterwards 
+4. Clean up build artifacts afterwards
+
+## Async/Await Fix
+
+We've identified and fixed an issue with async/await in the compiled functions code. The error was:
+
+```
+✘ [ERROR] "await" can only be used inside an "async" function
+
+    functions/dist/index.js:87:4:
+      87 │     await init_functionsRoutes_0_8136917234839718();
+         ╵     ~~~~~
+```
+
+This happened because the build process was generating code that used `await` inside functions that weren't marked as `async`. We've implemented two fixes:
+
+1. Added regex patterns in `fix-functions-build.js` to detect and fix functions using `await` without being marked as `async`
+
+2. Added a specific fix in `safe-deploy.js` that targets the exact issue with the `init_functionsRoutes` function
+
+The fix correctly modifies the generated JavaScript in the `functions/dist/index.js` file before deployment to ensure all functions that use `await` are properly declared as `async`. 
