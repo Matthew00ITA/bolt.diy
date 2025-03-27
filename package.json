@@ -28,7 +28,8 @@
     "typegen": "wrangler types",
     "preview": "pnpm run build && pnpm run start",
     "prepare": "husky",
-    "clean": "node scripts/clean.js"
+    "clean": "node scripts/clean.js",
+    "quick-clean": "node scripts/clean.js --quick"
   },
   "engines": {
     "node": ">=18.18.0"

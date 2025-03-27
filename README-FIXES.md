@@ -92,6 +92,30 @@ pnpm run clean
 
 This will safely clean your environment while preserving important configurations.
 
+## Quick Clean Option
+
+We've added a faster alternative to the full `pnpm clean` command that doesn't remove all node_modules directories. This is useful when you just want to rebuild the functions without reinstalling all dependencies:
+
+```bash
+pnpm run quick-clean
+```
+
+The quick-clean option:
+1. Preserves your node_modules directories and package-lock files
+2. Removes only the build artifacts (build/ and functions/ directories)
+3. Rebuilds the application with all necessary fixes
+4. Applies all the fixes to handle async/await issues and node:crypto compatibility
+
+This significantly reduces the clean time (often from minutes to seconds) while still fixing most common issues. Use this option when:
+- You're debugging build problems
+- You want to do a fresh build without reinstalling dependencies
+- The full clean is taking too long
+
+For a complete clean that also reinstalls all dependencies, you can still use:
+```bash
+pnpm run clean
+```
+
 ## Technical Details
 
 These fixes primarily address environment compatibility issues between Remix, Cloudflare Workers, and the Node.js APIs they expect. The key technical elements:
@@ -181,4 +205,26 @@ Additionally, we've made the following improvements to the fix-functions-build.j
 2. Line-by-line scanning of the generated code to find non-async functions using await
 3. Detailed logging to help diagnose any remaining issues
 
-You can now safely run `pnpm clean` without encountering the previous async/await errors. 
+You can now safely run `pnpm clean` without encountering the previous async/await errors.
+
+## Node:Crypto Module Fix
+
+We've identified and fixed an issue with the `node:crypto` module in Cloudflare Workers. The previous polyfills were handling the Web Crypto API (`globalThis.crypto`) but not specifically addressing the Node.js crypto module API that some dependencies might be trying to use through `require('crypto')` or `require('node:crypto')`.
+
+To fix this issue, we've implemented the following:
+
+1. **Created a dedicated crypto bridge**:
+   - Added `functions/node-crypto-bridge.js` that maps between node:crypto and Web Crypto API
+   - Implemented key functions like `createHash`, `randomBytes`, and `timingSafeEqual` 
+   - Made the implementation available globally via `globalThis.nodeCrypto`
+
+2. **Enhanced Node.js polyfills**:
+   - Updated `functions/node-polyfills.js` to properly handle crypto imports
+   - Implemented a minimal `require` function that returns our crypto implementation when `require('crypto')` is called
+   - Ensured the bridge is properly initialized before any code runs
+
+3. **Patched compiled output**:
+   - Added regex replacement in the build process to catch and replace direct `require('crypto')` calls
+   - Added fallbacks to ensure crypto functions don't crash when called
+
+These changes should resolve issues with the node:crypto module by providing a proper bridge between the Node.js crypto API and the Web Crypto API available in Cloudflare Workers. 

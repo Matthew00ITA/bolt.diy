@@ -8,23 +8,27 @@ const __dirname = dirname(__filename);
 const rootDir = join(__dirname, '..');
 const serverBuildPath = join(rootDir, 'build', 'server', 'index.js');
 const functionsBuildPath = join(rootDir, 'functions', 'build');
+const functionsDistPath = join(rootDir, 'functions', 'dist');
 const tempBuildPath = join(rootDir, 'temp_build_backup.js');
 const wranglerPath = join(rootDir, 'wrangler.toml');
 const tempWranglerPath = join(rootDir, 'temp_wrangler_backup.toml');
 const hasExistingBuild = existsSync(serverBuildPath);
 const hasWrangler = existsSync(wranglerPath);
 
+// Parse command line arguments
+const args = process.argv.slice(2);
+const isQuickClean = args.includes('--quick');
+
 // Function to fix async/await issues in compiled code
 function fixAsyncAwaitIssues() {
   console.log('🔧 Checking for async/await issues in compiled files...');
   
-  const functionsDistDir = join(rootDir, 'functions', 'dist');
-  if (!existsSync(functionsDistDir)) {
+  if (!existsSync(functionsDistPath)) {
     console.log('⚠️ Functions dist directory not found, skipping fix');
     return;
   }
   
-  const indexFile = join(functionsDistDir, 'index.js');
+  const indexFile = join(functionsDistPath, 'index.js');
   if (!existsSync(indexFile)) {
     console.log('⚠️ Functions index.js not found, skipping fix');
     return;
@@ -59,7 +63,7 @@ function fixAsyncAwaitIssues() {
   }
 }
 
-console.log('🧹 Starting clean operation...');
+console.log(`🧹 Starting ${isQuickClean ? 'quick ' : ''}clean operation...`);
 
 // Backup the build file if it exists
 if (hasExistingBuild) {
@@ -97,40 +101,55 @@ if (existsSync(functionsBuildPath)) {
   }
 }
 
-// Clean node_modules
-console.log('🗑️ Removing node_modules...');
-try {
-  execSync('find . -name "node_modules" -type d -prune | xargs rm -rf', { 
-    stdio: 'inherit', 
-    cwd: rootDir 
-  });
-  console.log('✅ node_modules removed');
-} catch (error) {
-  console.error('❌ Failed to remove node_modules:', error);
-  process.exit(1);
+// Clean functions dist
+if (existsSync(functionsDistPath)) {
+  console.log('🗑️ Removing functions dist directory...');
+  try {
+    execSync(`rm -rf ${functionsDistPath}`, { stdio: 'inherit', cwd: rootDir });
+    console.log('✅ Functions dist directory removed');
+  } catch (error) {
+    console.error('⚠️ Failed to remove functions dist directory:', error);
+    // Continue anyway
+  }
 }
 
-// Clean lock files
-console.log('🗑️ Removing lock files...');
-try {
-  execSync('find . -name "package-lock.json" -o -name "yarn.lock" -o -name "pnpm-lock.yaml" | xargs rm -f', { 
-    stdio: 'inherit', 
-    cwd: rootDir 
-  });
-  console.log('✅ Lock files removed');
-} catch (error) {
-  console.error('❌ Failed to remove lock files:', error);
-  process.exit(1);
-}
+// Only clean node_modules if not in quick mode
+if (!isQuickClean) {
+  // Clean node_modules
+  console.log('🗑️ Removing node_modules...');
+  try {
+    execSync('find . -name "node_modules" -type d -prune | xargs rm -rf', { 
+      stdio: 'inherit', 
+      cwd: rootDir 
+    });
+    console.log('✅ node_modules removed');
+  } catch (error) {
+    console.error('❌ Failed to remove node_modules:', error);
+    process.exit(1);
+  }
 
-// Reinstall dependencies
-console.log('📦 Reinstalling dependencies...');
-try {
-  execSync('pnpm install', { stdio: 'inherit', cwd: rootDir });
-  console.log('✅ Dependencies reinstalled');
-} catch (error) {
-  console.error('❌ Failed to reinstall dependencies:', error);
-  process.exit(1);
+  // Clean lock files
+  console.log('🗑️ Removing lock files...');
+  try {
+    execSync('find . -name "package-lock.json" -o -name "yarn.lock" -o -name "pnpm-lock.yaml" | xargs rm -f', { 
+      stdio: 'inherit', 
+      cwd: rootDir 
+    });
+    console.log('✅ Lock files removed');
+  } catch (error) {
+    console.error('❌ Failed to remove lock files:', error);
+    process.exit(1);
+  }
+
+  // Reinstall dependencies
+  console.log('📦 Reinstalling dependencies...');
+  try {
+    execSync('pnpm install', { stdio: 'inherit', cwd: rootDir });
+    console.log('✅ Dependencies reinstalled');
+  } catch (error) {
+    console.error('❌ Failed to reinstall dependencies:', error);
+    process.exit(1);
+  }
 }
 
 // Restore wrangler.toml if it was backed up
