@@ -1,3 +1,6 @@
+// Import crypto polyfill first to ensure it's available
+import './crypto-polyfill.js';
+
 import type { ServerBuild } from '@remix-run/cloudflare';
 import { createPagesFunctionHandler } from '@remix-run/cloudflare-pages';
 

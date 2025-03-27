@@ -32,6 +32,10 @@ dist-ssr
 .wrangler
 _worker.bundle
 
+# Build directories that may contain generated code with secrets
+/functions/build/
+/functions/dist/
+
 Modelfile
 modelfiles
 
@@ -43,4 +47,8 @@ app/commit.json
 changelogUI.md
 docs/instructions/Roadmap.md
 .cursorrules
+
+# MD files to ignore, but allow our specific documentation
 *.md
+!README-SECRET-FIX.md
+!README-FIXES.md
