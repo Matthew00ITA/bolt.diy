@@ -115,4 +115,31 @@ pages_build_output_dir = "./build/client"
 send_metrics = false
 ```
 
-This newer compatibility date allows proper resolution of Node.js built-in modules like 'crypto' and 'stream', which were causing build failures. 
+This newer compatibility date allows proper resolution of Node.js built-in modules like 'crypto' and 'stream', which were causing build failures.
+
+## Deployment Fix
+
+We've fixed an issue with the `safe-deploy.js` script where it was incorrectly passing `--compatibility-flags` and `--compatibility-date` parameters to the `wrangler pages deploy` command, which doesn't accept these flags directly.
+
+Instead, the compatibility settings are properly configured in the `wrangler.toml` file and will be used during deployment:
+
+```toml
+#:schema node_modules/wrangler/config-schema.json
+name = "bolt"
+compatibility_flags = ["nodejs_compat"]
+compatibility_date = "2024-09-23"
+pages_build_output_dir = "./build/client"
+send_metrics = false
+```
+
+To deploy to Cloudflare Pages, use:
+
+```bash
+pnpm run safe-deploy
+```
+
+This command will:
+1. Clean any previous build files
+2. Build the application with the correct settings
+3. Deploy to Cloudflare Pages using the settings from wrangler.toml
+4. Clean up build artifacts afterwards 
