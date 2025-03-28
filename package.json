@@ -19,6 +19,8 @@
     "manual-deploy": "pnpm run build && node scripts/manual-fix.js && wrangler pages deploy ./build/client",
     "patch": "node scripts/direct-patch.js",
     "final-deploy": "pnpm run build && node scripts/direct-patch.js && wrangler pages deploy ./build/client",
+    "syntax-fix": "node scripts/syntax-fix.js",
+    "ultimatedeploy": "pnpm run build && node scripts/fix-functions-build.js && node scripts/syntax-fix.js && wrangler pages deploy ./build/client --commit-dirty=true",
     "build": "NODE_OPTIONS='--max-old-space-size=4096 --no-warnings' remix vite:build && node scripts/fix-functions-build.js",
     "ensure-build": "node scripts/ensure-build.js",
     "predev": "node pre-start.cjs && node scripts/ensure-build.js",
