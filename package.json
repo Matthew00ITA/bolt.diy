@@ -11,6 +11,8 @@
     "safe-deploy": "node scripts/safe-deploy.js",
     "ultra-fix": "node scripts/ultra-deployment-fix.js",
     "ultra-deploy": "pnpm run build && node scripts/ultra-deployment-fix.js && wrangler pages deploy ./build/client",
+    "surgical-fix": "node scripts/surgical-fix.js",
+    "surgical-deploy": "pnpm run build && node scripts/surgical-fix.js && wrangler pages deploy ./build/client",
     "build": "NODE_OPTIONS='--max-old-space-size=4096 --no-warnings' remix vite:build && node scripts/fix-functions-build.js",
     "ensure-build": "node scripts/ensure-build.js",
     "predev": "node pre-start.cjs && node scripts/ensure-build.js",
