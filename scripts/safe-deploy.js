@@ -28,30 +28,106 @@ function fixAsyncAwaitIssues() {
   }
   
   try {
+    console.log('🔍 Reading functions index.js file...');
     let content = readFileSync(indexFile, 'utf-8');
+    let originalContent = content;
+    let modified = false;
     
-    // Look for specific pattern of the error with init_functionsRoutes function
+    // More aggressive fixes - look for specific line numbers from error logs
+    console.log('🔧 Applying aggressive async/await fixes...');
+    
+    // 1. Fix the specific pattern from error logs - line 86-87
     if (content.includes('await init_functionsRoutes_')) {
-      console.log('🔧 Found async/await issue, fixing...');
+      console.log('🔧 Found init_functionsRoutes_ calls, targeting fixes...');
       
-      // Find the problematic function declaration and make it async
-      const pattern = /function\s*\(\)\s*{\s*\n\s*await\s+init_functionsRoutes_/g;
-      if (pattern.test(content)) {
-        content = content.replace(
-          /function\s*\(\)\s*{\s*\n\s*await\s+init_functionsRoutes_/g,
-          'async function() {\n    await init_functionsRoutes_'
-        );
-        
-        writeFileSync(indexFile, content);
-        console.log('✅ Fixed async/await issue in functions index.js');
+      // Try multiple regex patterns to catch different variations
+      // First pattern: Function declaration format from line 86
+      content = content.replace(
+        /"\.\.\/node_modules\/[^"]+"\s*,\s*function\s*\(\)\s*{(\s*\n\s*await\s+init_functionsRoutes_)/g,
+        '"../node_modules/$1", async function() {$1'
+      );
+      
+      // Second pattern: Direct replacement with the exact function call
+      content = content.replace(
+        /function\s*\(\)\s*{\s*\n\s*await\s+init_functionsRoutes_[0-9_]+\(\)/g,
+        'async function() {\n    await init_functionsRoutes_$1()'
+      );
+      
+      // Third pattern: Any function with await init_functionsRoutes
+      content = content.replace(
+        /function\s*\([^)]*\)\s*{\s*\n\s*await\s+init_functionsRoutes_/g,
+        'async function() {\n    await init_functionsRoutes_'
+      );
+      
+      // Check if we made any changes
+      if (content !== originalContent) {
+        console.log('✅ Applied regex replacements for init_functionsRoutes');
+        modified = true;
       } else {
-        console.log('⚠️ Could not find exact pattern to fix');
+        console.log('⚠️ Could not fix with regex, trying line-by-line approach');
+        
+        // Line-by-line approach if regex didn't work
+        const lines = content.split('\n');
+        
+        // Search for all await statements
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].includes('await init_functionsRoutes_')) {
+            console.log(`🔍 Found await at line ${i+1}: ${lines[i].trim()}`);
+            
+            // Look backward for the function declaration (up to 10 lines)
+            for (let j = i; j >= Math.max(0, i-10); j--) {
+              if (lines[j].includes('function') && !lines[j].includes('async')) {
+                lines[j] = lines[j].replace('function', 'async function');
+                console.log(`✅ Added async at line ${j+1}: ${lines[j].trim()}`);
+                modified = true;
+                break;
+              }
+            }
+          }
+        }
+        
+        if (modified) {
+          content = lines.join('\n');
+        }
       }
+      
+      // Last resort: Just hack in a fix directly at the reported line number if we can find it
+      // This is a more invasive approach but needed for deployment
+      if (!modified && content.split('\n').length >= 87) {
+        console.log('🔧 Applying direct line fix at reported error location...');
+        const lines = content.split('\n');
+        
+        // Fix for line 86-87 from the error message
+        for (let i = 80; i < 100 && i < lines.length; i++) {
+          if (lines[i].includes('await init_functionsRoutes_')) {
+            // Make the previous line's function async
+            for (let j = i-1; j >= Math.max(0, i-10); j--) {
+              if (lines[j].includes('function') && !lines[j].includes('async')) {
+                lines[j] = lines[j].replace('function', 'async function');
+                console.log(`✅ Fixed line ${j+1} for await at line ${i+1}`);
+                modified = true;
+                break;
+              }
+            }
+          }
+        }
+        
+        if (modified) {
+          content = lines.join('\n');
+        }
+      }
+    }
+    
+    // Write changes back to the file if modified
+    if (modified) {
+      console.log('✏️ Writing fixed content back to file...');
+      writeFileSync(indexFile, content);
+      console.log('✅ Successfully fixed async/await issues');
     } else {
-      console.log('✅ No async/await issues found');
+      console.log('⚠️ No changes made to fix async/await issues - manual inspection may be needed');
     }
   } catch (error) {
-    console.error('⚠️ Error fixing async/await issues:', error);
+    console.error('❌ Error fixing async/await issues:', error);
   }
 }
 
