@@ -228,3 +228,25 @@ To fix this issue, we've implemented the following:
    - Added fallbacks to ensure crypto functions don't crash when called
 
 These changes should resolve issues with the node:crypto module by providing a proper bridge between the Node.js crypto API and the Web Crypto API available in Cloudflare Workers. 
+
+## Ultra Deployment Fix
+
+We've created a special emergency fix script for deployment issues. When the regular deployment fails with async/await errors despite our other fixes, you can use:
+
+```bash
+pnpm run ultra-fix
+```
+
+This script:
+1. Directly targets line 87 in the index.js file where the error occurs
+2. Scans for all await statements and adds 'async' to the corresponding functions
+3. Provides detailed debug output to help identify problems
+4. Only modifies the file if actual fixes were applied
+
+You can also use our all-in-one deployment command that builds, fixes, and deploys:
+
+```bash
+pnpm run ultra-deploy
+```
+
+If you're experiencing any specific errors during deployment, this approach is the most aggressive and should resolve most async/await issues. 
