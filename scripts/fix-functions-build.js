@@ -314,6 +314,25 @@ if (existsSync(functionsDistPath)) {
       if (content.includes('await')) {
         console.log('Found await statements that need fixing...');
         
+        // Add a more targeted fix for the specific error pattern shown in build logs
+        content = content.replace(
+          /(\s*)(await init_functionsRoutes_[0-9_]+\(\);)/g, 
+          (match, space, awaitStatement) => {
+            // Find the line before the await
+            const linesBefore = content.substring(0, content.indexOf(match)).split('\n');
+            const prevLine = linesBefore[linesBefore.length - 1];
+            
+            // If the previous line contains a function declaration without async, fix it
+            if (prevLine.includes('function') && !prevLine.includes('async')) {
+              const funcLineIndex = linesBefore.length - 1;
+              linesBefore[funcLineIndex] = prevLine.replace('function', 'async function');
+              return space + awaitStatement;
+            }
+            
+            return match;
+          }
+        );
+        
         // Use more targeted regex replacements instead of line-by-line processing
         // Fix init_functionsRoutes pattern specifically (most common issue)
         content = content.replace(
@@ -324,13 +343,13 @@ if (existsSync(functionsDistPath)) {
         // Fix function declarations with await on next line (common pattern)
         content = content.replace(
           /function\s+(\w+)\s*\([^)]*\)\s*{\s*\n\s*await/g,
-          'async function $1([^)]*) {\n    await'
+          'async function $1($1) {\n    await'
         );
         
         // Fix anonymous function declarations with await on next line
         content = content.replace(
           /function\s*\([^)]*\)\s*{\s*\n\s*await/g,
-          'async function([^)]*) {\n    await'
+          'async function($1) {\n    await'
         );
         
         // Fix arrow functions with await on next line
@@ -341,37 +360,60 @@ if (existsSync(functionsDistPath)) {
         
         console.log('✅ Applied bulk async/await fixes');
         
-        // Only do specific line fixing for init_functionsRoutes calls that are still problematic
-        if (content.includes('await init_functionsRoutes_')) {
-          const lines = content.split('\n');
-          let modified = false;
+        // Process the file line by line to catch remaining issues
+        const lines = content.split('\n');
+        let modified = false;
+        
+        // First pass: identify all lines with await
+        const awaitLines = [];
+        for (let i = 0; i < Math.min(lines.length, 3000); i++) {
+          if (lines[i].includes('await ')) {
+            awaitLines.push(i);
+          }
+        }
+        
+        // Second pass: for each await line, find and fix the enclosing function
+        for (const lineIndex of awaitLines) {
+          // Look backwards to find the function declaration
+          let enclosingFunctionIndex = -1;
+          let bracketCount = 0;
+          let foundOpeningBracket = false;
           
-          // Find all lines with init_functionsRoutes calls and make them async
-          for (let i = 0; i < lines.length; i++) {
-            if (lines[i].includes('await init_functionsRoutes_') && 
-                (i > 0 && !lines[i-1].includes('async'))) {
-              
-              // Look for the function declaration above this line
-              for (let j = i - 1; j >= Math.max(0, i - 10); j--) {
-                if (lines[j].includes('function') && !lines[j].includes('async')) {
-                  lines[j] = lines[j].replace('function', 'async function');
-                  modified = true;
-                  break;
-                }
-              }
+          for (let i = lineIndex; i >= 0; i--) {
+            const line = lines[i];
+            
+            // Count brackets to make sure we're in the same function scope
+            bracketCount += (line.match(/\{/g) || []).length;
+            bracketCount -= (line.match(/\}/g) || []).length;
+            
+            if (!foundOpeningBracket && line.includes('{')) {
+              foundOpeningBracket = true;
             }
             
-            // Limit the search to avoid excessive processing
-            if (i > 2000) {
-              console.log('⚠️ Limiting async/await fixes to first 2000 lines for performance');
+            if (foundOpeningBracket && bracketCount > 0 && 
+                (line.includes('function') || line.includes('=>')) && 
+                !line.includes('async')) {
+              enclosingFunctionIndex = i;
               break;
             }
           }
           
-          if (modified) {
-            content = lines.join('\n');
-            console.log('✅ Fixed specific init_functionsRoutes calls');
+          // If we found a non-async function, make it async
+          if (enclosingFunctionIndex !== -1) {
+            if (lines[enclosingFunctionIndex].includes('function')) {
+              lines[enclosingFunctionIndex] = lines[enclosingFunctionIndex].replace('function', 'async function');
+              modified = true;
+            } else if (lines[enclosingFunctionIndex].includes('=>')) {
+              // For arrow functions, add 'async' before the arrow
+              lines[enclosingFunctionIndex] = lines[enclosingFunctionIndex].replace(/(\([^)]*\))\s*=>/, 'async $1 =>');
+              modified = true;
+            }
           }
+        }
+        
+        if (modified) {
+          content = lines.join('\n');
+          console.log('✅ Fixed additional async/await issues with line-by-line processing');
         }
         
         writeFileSync(indexFile, content);
@@ -385,4 +427,39 @@ if (existsSync(functionsDistPath)) {
   }
 }
 
-console.log('🎉 Functions build paths fixed successfully!'); 
+// Apply ESM fixes
+console.log('🔧 Applying ESM syntax fixes...');
+try {
+  const indexFilePath = join(functionsDistPath, 'index.js');
+  if (existsSync(indexFilePath)) {
+    let content = readFileSync(indexFilePath, 'utf8');
+
+    // Fix multiple async keywords
+    content = content.replace(
+      /var __esm = \(fn, res\) => async async async function __init\(\)/g,
+      'var __esm = (fn, res) => function __init()'
+    );
+
+    // Also fix any other instances where multiple async keywords might appear
+    content = content.replace(/async async/g, 'async');
+
+    // Fix the specific line 86 error where 'async' appears after a quoted string
+    content = content.replace(
+      /\.pnpm\/unenv@[\d.]+(?:-[^/]+)?\/node_modules\/unenv\/dist\/runtime\/_internal\/utils\.mjs"async \(\) {/g,
+      '.pnpm/unenv@2.0.0-rc.14/node_modules/unenv/dist/runtime/_internal/utils.mjs"() {'
+    );
+
+    // Fix any other misplaced async keywords in similar patterns
+    content = content.replace(
+      /"([^"]+)"async \(\) {/g,
+      '"$1"() {'
+    );
+
+    writeFileSync(indexFilePath, content);
+    console.log('✅ Applied ESM syntax fixes');
+  }
+} catch (error) {
+  console.error('⚠️ Failed to apply ESM fixes:', error);
+}
+
+console.log('🎉 All function build fixes completed successfully!'); 
