@@ -52,8 +52,8 @@ try {
           console.log(`${lineIndex + 1}: ${lines[lineIndex]}`);
           console.log(`${lineIndex + 2}: ${nextLine}`);
           
-          // Fix it by making the function async
-          lines[lineIndex] = lines[lineIndex].replace(/"\(\)\s*{/, '") async {');
+          // Fix it by making the function async - corrected syntax
+          lines[lineIndex] = lines[lineIndex].replace(/\(\)\s*{/, '() async {');
           
           console.log('✅ Fixed the function declaration:');
           console.log(`${lineIndex + 1}: ${lines[lineIndex]}`);
@@ -82,8 +82,8 @@ try {
             if (j >= 0 && lines[j].includes('utils.mjs') && lines[j].includes('() {')) {
               console.log(`🎯 Found function definition at line ${j+1} with await at line ${i+1}`);
               
-              // Fix the function declaration
-              lines[j] = lines[j].replace(/"\(\)\s*{/, '") async {');
+              // Fix the function declaration - corrected syntax
+              lines[j] = lines[j].replace(/\(\)\s*{/, '() async {');
               fixed = true;
               console.log(`✅ Fixed: ${lines[j]}`);
               break;
@@ -110,6 +110,22 @@ try {
       '$1 async {$2'
     );
     
+    // Alternate direct fix with correct syntax
+    if (directContent === content) {
+      directContent = content.replace(
+        /(node_modules\/[^"]*unenv[^"]*\/dist\/runtime\/_internal\/utils\.mjs"\s*)\(\)\s*{(\s*\n\s*await)/g,
+        '$1() async {$2'
+      );
+    }
+    
+    // Try one more pattern
+    if (directContent === content) {
+      directContent = content.replace(
+        /(utils\.mjs"\s*)\(\)\s*{(\s*\n\s*await)/g,
+        '$1() async {$2'
+      );
+    }
+    
     // Check if we made any changes
     if (directContent !== content) {
       writeFileSync(indexFile, directContent);
@@ -130,8 +146,8 @@ try {
     if (needleLine + 1 < lines.length && lines[needleLine + 1].includes('await')) {
       console.log(`Line ${needleLine + 2}: ${lines[needleLine + 1]}`);
       
-      // Fix the function declaration by adding async
-      const fixedLine = lines[needleLine].replace('"() {', '") async {');
+      // Fix the function declaration by adding async - corrected syntax
+      const fixedLine = lines[needleLine].replace(/\(\)\s*{/, '() async {');
       lines[needleLine] = fixedLine;
       
       console.log('✅ Fixed function declaration:');
