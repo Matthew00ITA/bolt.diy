@@ -3,7 +3,10 @@
   "description": "An AI Agent",
   "private": true,
   "license": "MIT",
-  "sideEffects": ["./functions/crypto-polyfill.js", "./functions/node-polyfills.js"],
+  "sideEffects": [
+    "./functions/crypto-polyfill.js",
+    "./functions/node-polyfills.js"
+  ],
   "type": "module",
   "version": "0.0.7",
   "scripts": {
@@ -162,10 +165,15 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^35.1.2",
+    "electron-log": "^5.3.3",
+    "electron-store": "^10.0.1",
+    "electron-updater": "^6.6.2",
     "fast-glob": "^3.3.2",
     "husky": "9.1.7",
     "is-ci": "^3.0.1",
     "jsdom": "^26.0.0",
+    "mime": "^4.0.6",
     "node-fetch": "^3.3.2",
     "pnpm": "^9.14.4",
     "prettier": "^3.4.1",

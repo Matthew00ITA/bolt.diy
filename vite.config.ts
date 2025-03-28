@@ -104,10 +104,7 @@ export default defineConfig((config) => {
       commonjsOptions: {
         transformMixedEsModules: true,
       },
-      ssr: {
-        target: 'webworker',
-        noExternal: true
-      }
+      ssr: 'webworker'
     },
     optimizeDeps: {
       esbuildOptions: {
