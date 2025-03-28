@@ -15,6 +15,7 @@
     "dev": "remix vite:dev",
     "test": "vitest --run",
     "test:watch": "vitest",
+    "test-crypto": "node scripts/check-crypto.js",
     "lint": "eslint --cache --cache-location ./node_modules/.cache/eslint app",
     "lint:fix": "npm run lint -- --fix && prettier app --write",
     "start:windows": "node scripts/ensure-build.js && node scripts/fix-functions-build.js && wrangler pages dev ./build/client",

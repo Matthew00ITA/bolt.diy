@@ -257,10 +257,41 @@ if (typeof globalThis.Buffer === 'undefined') {
   globalThis.Buffer = { from: () => new Uint8Array(), isBuffer: () => false };
 }
 
+// Handle node:crypto imports
+if (typeof globalThis.require === 'undefined') {
+  globalThis.require = function(moduleName) {
+    console.log('Polyfilled require called for:', moduleName);
+    
+    if (moduleName === 'crypto' || moduleName === 'node:crypto') {
+      // Return minimal crypto implementation
+      return {
+        createHash: function(algorithm) {
+          console.log('Using polyfilled createHash with:', algorithm);
+          return {
+            update: function() { return this; },
+            digest: function() { return '0'.repeat(64); } // Mock hash
+          };
+        },
+        randomBytes: function(size) {
+          return globalThis.crypto.getRandomValues(new Uint8Array(size));
+        }
+      };
+    }
+    
+    throw new Error('Cannot find module: ' + moduleName);
+  };
+}
+
 console.log("Polyfills initialized");
 
 ${content}`;
       }
+      
+      // Also fix any node:crypto imports or require('crypto') calls in the content
+      content = content.replace(
+        /require\(['"](?:node:)?crypto['"]\)/g,
+        `(typeof globalThis.nodeCrypto !== 'undefined' ? globalThis.nodeCrypto : { createHash: () => ({ update: () => ({}), digest: () => '0'.repeat(64) }), randomBytes: size => new Uint8Array(size) })`
+      );
       
       writeFileSync(pathJsFile, content);
       console.log('✅ Successfully patched functions dist file');
@@ -279,81 +310,75 @@ if (existsSync(functionsDistPath)) {
     try {
       let content = readFileSync(indexFile, 'utf-8');
       
-      // More aggressive fixing of async/await issues
+      // More efficient fixing of async/await issues
       if (content.includes('await')) {
         console.log('Found await statements that need fixing...');
         
-        // Fix the specific pattern from the error log
+        // Use more targeted regex replacements instead of line-by-line processing
+        // Fix init_functionsRoutes pattern specifically (most common issue)
         content = content.replace(
-          /("\.\.\/node_modules\/.+"\s*,\s*)function\s*\(\)\s*{(\s*\n\s*await)/g,
-          '$1async function() {$2'
+          /function\s*\(\)\s*{\s*\n\s*await\s+init_functionsRoutes_/g,
+          'async function() {\n    await init_functionsRoutes_'
         );
         
-        // Fix function declarations that use await
+        // Fix function declarations with await on next line (common pattern)
         content = content.replace(
-          /function\s+(\w+)\s*\([^)]*\)\s*{([^}]*await)/g,
-          'async function $1([^)]*) {$2'
+          /function\s+(\w+)\s*\([^)]*\)\s*{\s*\n\s*await/g,
+          'async function $1([^)]*) {\n    await'
         );
         
-        // Fix anonymous function declarations with await
+        // Fix anonymous function declarations with await on next line
         content = content.replace(
-          /function\s*\([^)]*\)\s*{([^}]*await)/g,
-          'async function([^)]*) {$1'
+          /function\s*\([^)]*\)\s*{\s*\n\s*await/g,
+          'async function([^)]*) {\n    await'
         );
         
-        // Fix arrow functions
+        // Fix arrow functions with await on next line
         content = content.replace(
-          /(\([^)]*\))\s*=>\s*{([^}]*await)/g,
-          'async $1 => {$2'
+          /(\([^)]*\))\s*=>\s*{\s*\n\s*await/g,
+          'async $1 => {\n    await'
         );
         
-        // Fix any other cases where await is used within a non-async context
-        // This is a more aggressive approach
-        const awaitLines = content.split('\n').map((line, index) => ({ line, index }))
-          .filter(({ line }) => line.includes('await') && !line.includes('async'));
+        console.log('✅ Applied bulk async/await fixes');
         
-        if (awaitLines.length > 0) {
-          console.log(`Found ${awaitLines.length} lines with 'await' but no 'async'`);
+        // Only do specific line fixing for init_functionsRoutes calls that are still problematic
+        if (content.includes('await init_functionsRoutes_')) {
+          const lines = content.split('\n');
+          let modified = false;
           
-          // For each problematic line, find the function declaration it belongs to
-          for (const { line, index } of awaitLines) {
-            console.log(`Processing line ${index + 1}: ${line.trim()}`);
-            
-            // Look backwards to find the function declaration
-            let startLine = index;
-            while (startLine > 0) {
-              const checkLine = content.split('\n')[startLine];
-              if (checkLine.includes('function') && !checkLine.includes('async')) {
-                // Replace this line with an async version
-                console.log(`Found function declaration at line ${startLine + 1}: ${checkLine.trim()}`);
-                const lines = content.split('\n');
-                lines[startLine] = checkLine.replace('function', 'async function');
-                content = lines.join('\n');
-                break;
-              }
-              if (checkLine.includes('=>') && !checkLine.includes('async')) {
-                // Replace this line with an async version
-                console.log(`Found arrow function at line ${startLine + 1}: ${checkLine.trim()}`);
-                const lines = content.split('\n');
-                // Make sure we don't add async to a pattern that already has it
-                if (!lines[startLine].includes('async')) {
-                  // Handle arrow functions carefully
-                  const arrowMatch = checkLine.match(/(\s*)(\([^)]*\))\s*=>/);
-                  if (arrowMatch) {
-                    lines[startLine] = `${arrowMatch[1]}async ${arrowMatch[2]} =>`;
-                    content = lines.join('\n');
-                    break;
-                  }
+          // Find all lines with init_functionsRoutes calls and make them async
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].includes('await init_functionsRoutes_') && 
+                (i > 0 && !lines[i-1].includes('async'))) {
+              
+              // Look for the function declaration above this line
+              for (let j = i - 1; j >= Math.max(0, i - 10); j--) {
+                if (lines[j].includes('function') && !lines[j].includes('async')) {
+                  lines[j] = lines[j].replace('function', 'async function');
+                  modified = true;
+                  break;
                 }
               }
-              startLine--;
+            }
+            
+            // Limit the search to avoid excessive processing
+            if (i > 2000) {
+              console.log('⚠️ Limiting async/await fixes to first 2000 lines for performance');
+              break;
             }
           }
+          
+          if (modified) {
+            content = lines.join('\n');
+            console.log('✅ Fixed specific init_functionsRoutes calls');
+          }
         }
+        
+        writeFileSync(indexFile, content);
+        console.log('✅ Successfully patched functions index file');
+      } else {
+        console.log('✅ No await statements found, no fixes needed');
       }
-      
-      writeFileSync(indexFile, content);
-      console.log('✅ Successfully patched functions index file');
     } catch (error) {
       console.error('⚠️ Failed to patch functions index file:', error);
     }

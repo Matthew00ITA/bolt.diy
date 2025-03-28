@@ -19,7 +19,7 @@ const hasWrangler = existsSync(wranglerPath);
 const args = process.argv.slice(2);
 const isQuickClean = args.includes('--quick');
 
-// Function to fix async/await issues in compiled code
+// Function to fix async/await issues in compiled code (optimized version)
 function fixAsyncAwaitIssues() {
   console.log('🔧 Checking for async/await issues in compiled files...');
   
@@ -37,26 +37,31 @@ function fixAsyncAwaitIssues() {
   try {
     let content = readFileSync(indexFile, 'utf-8');
     
-    // Fix the most common async/await pattern issue with init functions
-    if (content.includes('await init_functionsRoutes_')) {
-      console.log('🔧 Found async/await issue with init_functionsRoutes, fixing...');
+    // Optimized async/await fix - use efficient regex replacements
+    if (content.includes('await')) {
+      console.log('🔧 Found async/await issues, applying efficient fixes...');
       
-      // Fix any node_modules pattern to ensure it has async before function
-      content = content.replace(
-        /("[^"]+node_modules[^"]+"\s*,\s*)function\s*\(\)\s*{(\s*\n\s*await)/g, 
-        '$1async function() {$2'
+      // Directly fix the init_functionsRoutes pattern (most common issue)
+      let patched = content.replace(
+        /function\s*\(\)\s*{\s*\n\s*await\s+init_functionsRoutes_/g,
+        'async function() {\n    await init_functionsRoutes_'
       );
       
-      // Fix any function with await to ensure it has async
-      content = content.replace(
-        /function\s*\([^)]*\)\s*{(\s*\n\s*await)/g,
-        'async function() {$1'
+      // Fix function declarations with await
+      patched = patched.replace(
+        /function\s*\([^)]*\)\s*{\s*\n\s*await/g,
+        'async function() {\n    await'
       );
       
-      writeFileSync(indexFile, content);
-      console.log('✅ Fixed async/await issues');
+      // Only check if actual changes were made
+      if (patched !== content) {
+        writeFileSync(indexFile, patched);
+        console.log('✅ Fixed async/await issues');
+      } else {
+        console.log('✅ No fixable async/await issues found');
+      }
     } else {
-      console.log('✅ No known async/await issues found');
+      console.log('✅ No await statements found, no fixes needed');
     }
   } catch (error) {
     console.error('⚠️ Error checking/fixing async/await issues:', error);
